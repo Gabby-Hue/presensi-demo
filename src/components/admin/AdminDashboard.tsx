@@ -1155,7 +1155,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   kpiCardWide: {
-    width: '31.8%',
+    flex: 1,
+    minWidth: 200,
   },
   kpiContent: {
     padding: 14,
