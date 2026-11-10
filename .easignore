@@ -1,0 +1,9 @@
+node_modules
+.expo
+dist
+web-build
+.git
+.env.local
+.env.*.local
+*.log
+screening_shots
