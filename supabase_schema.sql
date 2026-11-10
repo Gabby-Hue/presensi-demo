@@ -1,7 +1,7 @@
 -- =====================================================================
--- E-PRESENSI SUPABASE FULL SCHEMA & INITIAL SEED (1:1 COPY)
--- Bersih tanpa logo/branding SKMI, 100% didukung Supabase + Vercel
--- Hanya ada akun Super Admin (tidak ada karyawan dummy)
+-- E-PRESENSI SUPABASE FULL SCHEMA & INITIAL SEED
+-- Pure polosan & netral, 100% didukung Supabase + Vercel
+-- Hanya ada akun Super Admin (tidak ada akun dummy)
 -- =====================================================================
 
 -- 0. Ekstensi pgcrypto untuk hash password auth bawaan

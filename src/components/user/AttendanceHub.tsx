@@ -931,7 +931,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        {/* 1. Header Profil Ramah Bergaya SMKN 2 */}
+        {/* 1. Header Profil Ramah */}
         <View style={[styles.welcomeCard, neoShadow.sm]}>
           <View style={styles.welcomeTopRow}>
             <Image
@@ -1106,7 +1106,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
           </View>
         )}
 
-        {/* 2. SECTION: Lokasimu Saat Ini (Ala SMKN 2) */}
+        {/* 2. SECTION: Lokasimu Saat Ini */}
         <View style={styles.sectionHeaderWrap}>
           <Text style={styles.sectionTitleMain}>Lokasimu Saat Ini</Text>
           <Text style={styles.sectionSubtitleMain}>Pastikan lokasi perangkat sudah sesuai.</Text>
@@ -1232,7 +1232,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
           )}
         </View>
 
-        {/* 3. SECTION: Pilih Kehadiran (Dua Kartu Solid Colourful Ala SMKN 2) */}
+        {/* 3. SECTION: Pilih Kehadiran */}
         <View style={styles.sectionHeaderWrap}>
           <Text style={styles.sectionTitleMain}>Pilih Kehadiran</Text>
           <Text style={styles.sectionSubtitleMain}>Silakan pilih Masuk atau Pulang.</Text>
@@ -2526,7 +2526,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 12,
   },
-  // Modern Colorful Mobile Style (SMKN 2 Inspired)
+  // Modern Colorful Mobile Style
   welcomeCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
@@ -2732,7 +2732,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   masukCardBg: {
-    backgroundColor: '#16A34A', // Vibrant Emerald Green ala SMKN 2
+    backgroundColor: '#16A34A', // Vibrant Emerald Green
   },
   masukCardDoneBg: {
     backgroundColor: '#15803D',

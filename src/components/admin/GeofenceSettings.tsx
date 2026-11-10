@@ -371,7 +371,7 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
         fail();
         setFeedbackDialog({
           title: 'Tidak Ditemukan',
-          message: `Alamat tidak ditemukan. Coba ketik nama jalan utama dan kotanya saja, contoh:\n"Jl. Western Village, Surabaya" atau "Dinoyo, Malang".`,
+          message: `Alamat tidak ditemukan. Coba ketik nama jalan utama dan kotanya saja, contoh:\n"Jl. Jenderal Sudirman, Jakarta" atau "Jl. Pemuda, Surabaya".`,
           variant: 'danger',
         });
       }
@@ -674,7 +674,7 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
               style={[styles.input, { flex: 1, minHeight: 48 }]}
               value={addressQuery}
               onChangeText={setAddressQuery}
-              placeholder="Contoh: Jl. Benowo, Surabaya..."
+              placeholder="Contoh: Jl. Jenderal Sudirman No. 10..."
               placeholderTextColor={colors.faint}
               onSubmitEditing={handleSearchAddress}
             />

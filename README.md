@@ -1,11 +1,11 @@
-# E-Presensi Pro (Copy 1:1 Vercel + Supabase)
+# E-Presensi Pro (Vercel + Supabase)
 
 Aplikasi presensi modern, clean, dan responsif (Web & Mobile Expo) yang terhubung langsung ke **Supabase** (Auth, PostgreSQL DB, dan Storage) serta siap dideploy ke **Vercel** dengan 1 klik.
 
-## Keunggulan Versi Ini
-- **1:1 Fitur Cakralab**: Geofencing multi-kantor, swafoto webcam/HP dengan watermark waktu real-time, approval izin/sakit, kalender status dinamis, manajemen PT/departemen, audit logs, timesheet kegiatan proyek, dan ekspor Excel/PDF.
-- **Bebas Branding SKMI**: Semua aset gambar, logo, watermark kamera, dan teks telah dibersihkan menjadi netral (`E-Presensi`).
-- **Hanya Akun Super Admin**: Database awal bersih tanpa akun karyawan dummy (Neil, Satya, Gabby dll sudah dihapus). Akun pertama yang tersedia adalah Super Admin (`admin@admin.com` / `123456`).
+## Keunggulan
+- **Fitur Lengkap**: Geofencing multi-kantor, swafoto webcam/HP dengan watermark waktu real-time, approval izin/sakit, kalender status dinamis, manajemen PT/departemen, audit logs, timesheet kegiatan proyek, dan ekspor Excel/PDF.
+- **Desain Netral & Bersih**: Pure polosan, bebas trademark/branding apa pun, hanya label resmi aplikasi `E-Presensi`.
+- **Hanya Akun Super Admin**: Database awal bersih tanpa akun dummy. Akun pertama yang tersedia adalah Super Admin (`admin@admin.com` / `123456`).
 
 ---
 

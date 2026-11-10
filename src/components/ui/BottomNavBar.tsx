@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   tabContentActive: {
-    backgroundColor: '#DCFCE7', // Soft mint-green pill ala Material 3 / SMKN 2
+    backgroundColor: '#DCFCE7', // Soft mint-green pill ala Material 3
   },
   tabLabel: {
     fontSize: 10,

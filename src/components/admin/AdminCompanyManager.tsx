@@ -231,7 +231,7 @@ export const AdminCompanyManager: React.FC<AdminCompanyManagerProps> = ({
         <View style={styles.inlineForm}>
           <TextInput
             style={[styles.input, { flex: 1 }]}
-            placeholder="Contoh: PT Pratama Nusantara"
+            placeholder="Contoh: PT Perusahaan Contoh"
             placeholderTextColor={colors.faint}
             value={name}
             onChangeText={setName}

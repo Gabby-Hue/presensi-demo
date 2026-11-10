@@ -10,11 +10,10 @@ export interface ProjectOption {
 }
 
 export const DEFAULT_PROJECTS: ProjectOption[] = [
-  { code: 'MG05', name: 'Dashboard Piping', category: 'proyek' },
-  { code: 'PR01', name: 'Renovasi Ruko Dinoyo', category: 'proyek' },
-  { code: 'PR02', name: 'Pembangunan Gudang Sememi', category: 'proyek' },
-  { code: 'SL02', name: 'Sales Lapangan', category: 'sales' },
-  { code: 'SL03', name: 'Kunjungan Toko & Klien', category: 'sales' },
+  { code: 'PR01', name: 'Pengembangan Sistem Internal', category: 'proyek' },
+  { code: 'PR02', name: 'Pemeliharaan Infrastruktur', category: 'proyek' },
+  { code: 'SL01', name: 'Kunjungan Klien & Mitra', category: 'sales' },
+  { code: 'SL02', name: 'Riset Pasar & Penjualan', category: 'sales' },
   { code: 'INT01', name: 'Operasional Kantor', category: 'internal' },
 ];
 

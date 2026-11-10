@@ -587,7 +587,7 @@ export function printAttendanceSlip(data: SlipPrintData) {
     <div>
       <div class="meta-row">
         <span class="meta-label">Instansi / PT</span>
-        <span class="meta-val">: ${user.companyName || 'PT Solusi Karya Mandiri Indonesia'}</span>
+        <span class="meta-val">: ${user.companyName || 'Perusahaan'}</span>
       </div>
       <div class="meta-row">
         <span class="meta-label">Perangkat Terkunci</span>
