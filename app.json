@@ -54,6 +54,12 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9220875c-791c-42ef-b632-a7ed2789b5e1"
+      }
+    },
+    "owner": "gabbyhue"
   }
 }
