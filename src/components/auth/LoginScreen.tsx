@@ -19,6 +19,7 @@ import { AttendanceService } from '../../services/attendanceService';
 import { UserProfile } from '../../types/attendance';
 import { Button } from '../ui/Button';
 import { colors, fontSize, neoShadow, radius, spacing, touch } from '../../theme';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 interface LoginScreenProps {
   onLoginSuccess: (user?: UserProfile) => void;
@@ -91,6 +92,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <View style={[styles.card, neoShadow.sm]}>
             <Text style={styles.cardTitle}>Masuk Akun</Text>
             <Text style={styles.cardHint}>Gunakan email dan kata sandi resmi dari kantor.</Text>
+
+            {!isSupabaseConfigured && (
+              <View style={[styles.errorBox, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A', marginBottom: spacing.md }]}>
+                <Feather name="info" size={16} color="#D97706" />
+                <Text style={[styles.errorText, { color: '#92400E', flex: 1 }]}>
+                  Koneksi Supabase belum diatur di Vercel. Masukkan EXPO_PUBLIC_SUPABASE_URL & ANON_KEY di Environment Variables Vercel.
+                </Text>
+              </View>
+            )}
 
             {errorMessage && (
               <View style={styles.errorBox}>
