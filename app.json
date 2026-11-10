@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "E-Presensi",
+    "slug": "e-presensi",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.epresensi.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Aplikasi E-Presensi memerlukan akses lokasi untuk verifikasi kehadiran presensi luring."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Aplikasi E-Presensi memerlukan akses kamera untuk verifikasi swafoto presensi."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a",
+              "armeabi-v7a"
+            ]
+          }
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9220875c-791c-42ef-b632-a7ed2789b5e1"
+      }
+    }
+  }
+}
