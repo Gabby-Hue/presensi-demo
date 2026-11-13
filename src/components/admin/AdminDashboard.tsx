@@ -56,7 +56,7 @@ const TABS: Array<{
   { key: 'monitoring', label: 'Monitoring', icon: 'pie-chart' },
   { key: 'report', label: 'Rekap Laporan', icon: 'bar-chart-2', branchOnly: true },
   { key: 'geofence', label: 'Titik & Radius', icon: 'map', branchOnly: true },
-  { key: 'departments', label: 'Departemen', icon: 'grid', branchOnly: true },
+  { key: 'departments', label: 'Departemen', icon: 'grid' },
   { key: 'employees', label: 'Kelola Karyawan', icon: 'user-plus', branchOnly: true },
   { key: 'approval', label: 'Persetujuan', icon: 'inbox', branchOnly: true },
 ];
@@ -176,7 +176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Admin Branch HANYA melihat menu operasional cabang
   const visibleTabs = TABS.filter((t) => {
     if (isSuper) {
-      return t.superOnly || (t.key === 'monitoring' && !t.branchOnly);
+      return t.superOnly || t.key === 'departments' || (t.key === 'monitoring' && !t.branchOnly);
     } else {
       return !t.superOnly;
     }
@@ -609,7 +609,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {/* 2. TAB REKAP LAPORAN (HANYA ADMIN CABANG) */}
-      {activeTab === 'report' && !isSuper && <AdminDepartmentReport users={users} offices={officeList} />}
+      {activeTab === 'report' && !isSuper && (
+        <AdminDepartmentReport
+          users={users}
+          offices={officeList}
+          companyId={currentAdmin.companyId || undefined}
+        />
+      )}
 
       {/* 3. TAB TITIK & RADIUS GEOFENCE (HANYA ADMIN CABANG) */}
       {activeTab === 'geofence' && !isSuper && (
@@ -636,8 +642,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       )}
 
-      {/* 4. TAB KELOLA DEPARTEMEN (HANYA ADMIN CABANG) */}
-      {activeTab === 'departments' && !isSuper && (
+      {/* 4. TAB KELOLA DEPARTEMEN */}
+      {activeTab === 'departments' && (
         <AdminDepartmentManager
           currentAdmin={currentAdmin}
           users={users}

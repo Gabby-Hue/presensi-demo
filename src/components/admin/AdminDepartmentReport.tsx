@@ -32,9 +32,10 @@ import { select, succeed } from '../../services/feedbackService';
 interface AdminDepartmentReportProps {
   users: UserProfile[];
   offices?: OfficeSettings[];
+  companyId?: string;
 }
 
-export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ users, offices = [] }) => {
+export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ users, offices = [], companyId }) => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [departmentList, setDepartmentList] = useState<string[]>([]);
   const [officeList, setOfficeList] = useState<OfficeSettings[]>(offices);
@@ -60,7 +61,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
   useEffect(() => {
     Promise.all([
       AttendanceService.getAllAttendances(),
-      AttendanceService.getDepartments(),
+      AttendanceService.getDepartments(companyId),
       AttendanceService.getOfficeList(),
     ])
       .then(([recs, depts, offs]) => {

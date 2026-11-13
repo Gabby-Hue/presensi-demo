@@ -84,7 +84,6 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                   activeOpacity={0.8}
                   onPress={() => {
                     tap();
-                    onClose();
                     onConfirm();
                   }}
                   style={[

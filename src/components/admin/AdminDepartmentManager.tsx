@@ -244,18 +244,19 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
     setDeletingDept(dept);
     const availableTargets = departments.filter((d) => d.id !== dept.id);
     setDeleteFallbackDept(availableTargets[0]?.name || '');
-    // Jika ada departemen lain, default ke 'reassign'; jika tidak ada, otomatis kunci ke 'unassign'
-    setDeleteMode(availableTargets.length > 0 ? 'reassign' : 'unassign');
+    setDeleteMode('unassign');
   };
 
   const handleConfirmDelete = async () => {
-    if (!deletingDept) return;
+    const target = deletingDept;
+    if (!target) return;
     setDeleting(true);
-    const res = await AttendanceService.deleteDepartment(deletingDept.id, {
-      action: deletingDept.employeeCount > 0 ? deleteMode : 'unassign',
-      reassignTo: deleteMode === 'reassign' && deletingDept.employeeCount > 0 ? deleteFallbackDept : undefined,
+    const res = await AttendanceService.deleteDepartment(target.id, {
+      action: target.employeeCount > 0 ? deleteMode : 'unassign',
+      reassignTo: deleteMode === 'reassign' && target.employeeCount > 0 ? deleteFallbackDept : undefined,
     });
     setDeleting(false);
+    setDeletingDept(null);
     if (!res.success) {
       fail();
       setFeedbackDialog({
@@ -266,7 +267,6 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
       return;
     }
     succeed();
-    setDeletingDept(null);
     setFeedbackDialog({
       title: 'Departemen Dihapus',
       message: res.message,

@@ -871,30 +871,22 @@ export class AttendanceService {
     return [];
   }
 
-  static async getDepartments(companyId?: string): Promise<string[]> {
+  static async getDepartments(_companyId?: string): Promise<string[]> {
     try {
-      let query = supabase.from('departments').select('name').order('name');
-      if (companyId) {
-        query = query.eq('company_id', companyId);
-      }
-      const { data, error } = await query;
+      const { data, error } = await supabase.from('departments').select('name').order('name');
       if (!error && data) {
-        return data.map((d: any) => d.name);
+        return Array.from(new Set(data.map((d: any) => d.name).filter(Boolean)));
       }
     } catch {}
     return [];
   }
 
-  static async getDepartmentItems(companyId?: string): Promise<DepartmentItem[]> {
+  static async getDepartmentItems(_companyId?: string): Promise<DepartmentItem[]> {
     try {
-      let query = supabase.from('departments').select('*').order('name');
-      if (companyId) {
-        query = query.eq('company_id', companyId);
-      }
-      const { data, error } = await query;
+      const { data, error } = await supabase.from('departments').select('*').order('name');
       if (error || !data) return [];
 
-      const { data: profiles } = await supabase.from('profiles').select('department');
+      const { data: profiles } = await supabase.from('profiles').select('department, company_id');
       const deptCounts: Record<string, number> = {};
       (profiles || []).forEach((p: any) => {
         const d = p.department || 'None';
@@ -988,23 +980,34 @@ export class AttendanceService {
   }
 
   static async deleteDepartment(
-    id: string,
+    idOrName: string,
     options?: string | { action?: 'unassign' | 'reassign'; reassignTo?: string }
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const { data: dept } = await supabase.from('departments').select('name, company_id').eq('id', id).maybeSingle();
-      if (dept) {
-        const reassignTo = typeof options === 'string' ? options : options?.reassignTo;
-        const targetDept = reassignTo || 'None';
-        await supabase
-          .from('profiles')
-          .update({ department: targetDept })
-          .eq('department', dept.name);
+      const isIdUuid = isUuid(idOrName);
+      let deptName = idOrName;
+
+      if (isIdUuid) {
+        const { data: dept } = await supabase.from('departments').select('name, company_id').eq('id', idOrName).maybeSingle();
+        if (dept?.name) deptName = dept.name;
       }
 
-      const { error } = await supabase.from('departments').delete().eq('id', id);
-      if (error) throw new Error(error.message);
-      return { success: true, message: 'Departemen berhasil dihapus.' };
+      const reassignTo = typeof options === 'string' ? options : options?.reassignTo;
+      const targetDept = reassignTo || 'None';
+
+      // Selalu unassign / reassign karyawan dari profil
+      await supabase
+        .from('profiles')
+        .update({ department: targetDept })
+        .eq('department', deptName);
+
+      // Hapus dari tabel departments (baik by ID maupun by Name)
+      if (isIdUuid) {
+        await supabase.from('departments').delete().eq('id', idOrName);
+      }
+      await supabase.from('departments').delete().eq('name', deptName);
+
+      return { success: true, message: `Departemen "${deptName}" berhasil dihapus.` };
     } catch (e: any) {
       return { success: false, message: e?.message || 'Gagal menghapus departemen.' };
     }
