@@ -34,6 +34,7 @@ import { isNationalHoliday } from '../../utils/holidays';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { CameraModal } from './CameraModal';
 
 interface UserActivitiesScreenProps {
   user: UserProfile;
@@ -98,6 +99,7 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
 
   // Load activities for current selected month & date
   const loadData = async (date: string) => {
@@ -186,48 +188,9 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleTakePhoto = async () => {
+  const handleTakePhoto = () => {
     void select();
-    if (Platform.OS === 'web') {
-      try {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        (input as any).capture = 'environment';
-        input.onchange = (e: any) => {
-          const file = e.target?.files?.[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-              setPhotoUri(reader.result as string);
-              setPhotoName(file.name || `kegiatan_foto_${Date.now()}.jpg`);
-            };
-            reader.readAsDataURL(file);
-          }
-        };
-        input.click();
-        return;
-      } catch (err) {
-        console.warn('Web camera file input error:', err);
-      }
-    }
-    try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Izin Kamera Diperlukan', 'Mohon izinkan akses kamera pada perangkat Anda untuk mengambil foto kegiatan.');
-        return;
-      }
-      const res = await ImagePicker.launchCameraAsync({
-        quality: 0.7,
-      });
-      if (!res.canceled && res.assets && res.assets.length > 0) {
-        const asset = res.assets[0];
-        setPhotoUri(asset.uri);
-        setPhotoName(asset.fileName || `kegiatan_kamera_${Date.now()}.jpg`);
-      }
-    } catch (err) {
-      console.warn('Gagal membuka kamera:', err);
-    }
+    setIsCameraOpen(true);
   };
 
   const handlePickGallery = async () => {
@@ -809,6 +772,28 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
           )}
         </View>
       </Modal>
+
+      {/* Modal Kamera Pengambilan Foto Langsung */}
+      <CameraModal
+        visible={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onConfirmPhoto={(capturedUri) => {
+          setPhotoUri(capturedUri);
+          setPhotoName(`kegiatan_${Date.now()}.jpg`);
+          setIsCameraOpen(false);
+        }}
+        attendanceTypeLabel="Dokumentasi Kegiatan"
+        metadata={{
+          userName: user.fullName,
+          department: user.department || 'Operasional',
+          companyName: user.companyName || 'E-Presensi',
+          sessionLabel: 'FOTO KEGIATAN',
+          statusLabel: selectedProject.trim() || 'Aktivitas Kerja',
+          officeName: 'Lokasi Kerja',
+          distanceText: '',
+          deviceModel: user.deviceModel,
+        }}
+      />
 
       {/* Confirm Dialog Hapus */}
       <ConfirmDialog
