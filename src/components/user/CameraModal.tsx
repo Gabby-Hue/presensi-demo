@@ -172,6 +172,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   const [capturing, setCapturing] = useState(false);
   const [webStream, setWebStream] = useState<MediaStream | null>(null);
   const [webError, setWebError] = useState<string | null>(null);
+  const [facing, setFacing] = useState<'front' | 'back'>('front');
 
   const cameraRef = useRef<CameraView>(null);
   const videoNodeRef = useRef<HTMLVideoElement | null>(null);
@@ -224,33 +225,23 @@ export const CameraModal: React.FC<CameraModalProps> = ({
     if (e.target) e.target.value = '';
   };
 
-  // Initialize Web Camera Stream when modal opens on Web
-  useEffect(() => {
-    if (visible && Platform.OS === 'web' && !capturedPhoto) {
-      initWebCamera();
-    } else {
-      stopWebCamera();
-    }
-
-    return () => {
-      stopWebCamera();
-    };
-  }, [visible, capturedPhoto]);
-
-  const initWebCamera = async () => {
+  const initWebCamera = async (targetFacing?: 'front' | 'back') => {
     setWebError(null);
+    const activeFacing = targetFacing || facing;
+    const webFacingMode = activeFacing === 'front' ? 'user' : 'environment';
+
     try {
       if (typeof window !== 'undefined' && navigator?.mediaDevices?.getUserMedia) {
         let stream: MediaStream | null = null;
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+            video: { facingMode: { ideal: webFacingMode }, width: { ideal: 640 }, height: { ideal: 480 } },
             audio: false,
           });
         } catch (constraintErr) {
           // Fallback jika constraint resolusi/facingMode ditolak oleh webcam tertentu
           stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: { facingMode: webFacingMode },
             audio: false,
           });
         }
@@ -272,6 +263,32 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       }
     }
   };
+
+  const toggleCameraFacing = () => {
+    tap();
+    const nextFacing = facing === 'front' ? 'back' : 'front';
+    setFacing(nextFacing);
+
+    if (Platform.OS === 'web') {
+      stopWebCamera();
+      setTimeout(() => {
+        initWebCamera(nextFacing);
+      }, 150);
+    }
+  };
+
+  // Initialize Web Camera Stream when modal opens on Web
+  useEffect(() => {
+    if (visible && Platform.OS === 'web' && !capturedPhoto) {
+      initWebCamera(facing);
+    } else {
+      stopWebCamera();
+    }
+
+    return () => {
+      stopWebCamera();
+    };
+  }, [visible, capturedPhoto]);
 
   const stopWebCamera = () => {
     if (webStream) {
@@ -311,10 +328,14 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           canvas.height = 640;
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1); // Flip horizontally for natural selfie orientation
-            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-            ctx.setTransform(1, 0, 0, 1, 0, 0); // Restore identity transform
+            if (facing === 'front') {
+              ctx.translate(canvas.width, 0);
+              ctx.scale(-1, 1); // Flip horizontally for natural selfie orientation
+              ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+              ctx.setTransform(1, 0, 0, 1, 0, 0); // Restore identity transform
+            } else {
+              ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            }
 
             // Stempel metadata watermark
             if (metadata) {
@@ -431,13 +452,27 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                transform: 'scaleX(-1)', // Mirror feed
+                transform: facing === 'front' ? 'scaleX(-1)' : 'none',
               },
             })}
             <View style={styles.targetGuideOverlay}>
               <View style={styles.targetCircle} />
-              <Text style={styles.targetGuideText}>Posisikan wajah Anda di dalam panduan</Text>
+              <Text style={styles.targetGuideText}>
+                {facing === 'front' ? 'Posisikan wajah Anda di dalam panduan' : 'Arahkan kamera ke objek / lokasi kerja'}
+              </Text>
             </View>
+
+            {/* Quick Switch Camera Facing (Depan / Belakang) */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.flipFloatingBtn}
+              onPress={toggleCameraFacing}
+            >
+              <Feather name="refresh-cw" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.flipFloatingBtnText}>
+                {facing === 'front' ? 'Kamera Belakang' : 'Kamera Depan'}
+              </Text>
+            </TouchableOpacity>
 
             {/* Quick Switch to Phone Native Camera if Web Stream is Slow */}
             <TouchableOpacity
@@ -468,7 +503,14 @@ export const CameraModal: React.FC<CameraModalProps> = ({
             <Text style={styles.headerTitle}>Verifikasi Swafoto</Text>
             <Text style={styles.headerSub}>{attendanceTypeLabel}</Text>
           </View>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity
+            onPress={toggleCameraFacing}
+            style={styles.switchCamHeaderBtn}
+            accessibilityLabel="Ganti Kamera Depan / Belakang"
+            activeOpacity={0.7}
+          >
+            <Feather name="refresh-cw" size={17} color={colors.primary} />
+          </TouchableOpacity>
         </View>
 
         {/* Captured Photo Validation vs Live Camera Stream */}
@@ -523,18 +565,31 @@ export const CameraModal: React.FC<CameraModalProps> = ({
               </View>
             ) : (
               <View style={{ flex: 1 }}>
-                <CameraView mode="picture" style={styles.nativeCamera} facing="front" ref={cameraRef}>
+                <CameraView mode="picture" style={styles.nativeCamera} facing={facing} ref={cameraRef}>
                   <View style={styles.targetGuideOverlay}>
                     <View style={styles.targetCircle} />
-                    <Text style={styles.targetGuideText}>Posisikan wajah Anda di dalam panduan</Text>
+                    <Text style={styles.targetGuideText}>
+                      {facing === 'front' ? 'Posisikan wajah Anda di dalam panduan' : 'Arahkan kamera ke objek / lokasi kerja'}
+                    </Text>
                   </View>
+                  {/* Floating Flip Button on Native */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.flipFloatingBtn}
+                    onPress={toggleCameraFacing}
+                  >
+                    <Feather name="refresh-cw" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.flipFloatingBtnText}>
+                      {facing === 'front' ? 'Kamera Belakang' : 'Kamera Depan'}
+                    </Text>
+                  </TouchableOpacity>
                 </CameraView>
               </View>
             )}
 
             {/* Bottom Camera Snap Controls */}
             <View style={styles.bottomControls}>
-              <View style={{ width: 44 }} />
+              <View style={{ width: 48 }} />
 
               <TouchableOpacity
                 activeOpacity={0.8}
@@ -546,7 +601,17 @@ export const CameraModal: React.FC<CameraModalProps> = ({
                 <View style={styles.snapInnerCircle} />
               </TouchableOpacity>
 
-              <View style={{ width: 44 }} />
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={toggleCameraFacing}
+                style={styles.switchCamBottomBtn}
+                accessibilityLabel="Putar Kamera"
+              >
+                <Feather name="refresh-cw" size={20} color={colors.primary} />
+                <Text style={styles.switchCamBottomText}>
+                  {facing === 'front' ? 'Belakang' : 'Depan'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -781,14 +846,57 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.sm,
   },
-  bottomControls: {
-    flexDirection: 'column',
+  switchCamHeaderBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  flipFloatingBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    zIndex: 20,
+  },
+  flipFloatingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  bottomControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 14,
+    paddingHorizontal: spacing.xl,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  switchCamBottomBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 64,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  switchCamBottomText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primary,
+    marginTop: 3,
   },
   snapBtn: {
     width: 72,
