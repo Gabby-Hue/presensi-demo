@@ -50,21 +50,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    // Fallback mode pratinjau lokal offline jika server backend tidak dinyalakan
-    const lowerEmail = email.toLowerCase().trim();
-    if (lowerEmail.includes('admin') || password === '123456') {
-      const mockRole = lowerEmail.includes('admin') ? 'admin' : 'employee';
-      const mockUser: UserProfile = {
-        id: mockRole === 'admin' ? '1' : '301',
-        email: lowerEmail,
-        fullName: mockRole === 'admin' ? 'Admin HR Cabang' : 'Neil (Karyawan)',
-        role: mockRole,
-        department: mockRole === 'admin' ? 'Human Capital' : 'IT',
-      };
-      onLoginSuccess(mockUser);
-      return;
-    }
-
     setErrorMessage(error || 'Gagal masuk. Periksa kembali email dan kata sandi.');
   };
 

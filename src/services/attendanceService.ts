@@ -26,6 +26,11 @@ let cachedOffices: OfficeSettings[] = [currentOfficeSettings];
 
 const FIXED_OFFICE_ID = '00000000-0000-0000-0000-000000000001';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(v?: string | null): boolean {
+  return typeof v === 'string' && UUID_REGEX.test(v);
+}
+
 function isHexColor(v: any): boolean {
   return typeof v === 'string' && /^#[0-9A-Fa-f]{6}$/.test(v);
 }
@@ -148,6 +153,29 @@ export class AttendanceService {
         email: authEmail,
         password: pass,
       });
+
+      // Jika gagal dengan authEmail hasil mapping, coba cari email asli di database profiles (bisa login pakai username / nama)
+      if (error && error.message) {
+        try {
+          const { data: matchedProfile } = await supabase
+            .from('profiles')
+            .select('email')
+            .or(`email.ilike.${raw},full_name.ilike.${raw},email.ilike.${raw}@%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (matchedProfile?.email && matchedProfile.email.toLowerCase() !== authEmail.toLowerCase()) {
+            const retryAuth = await supabase.auth.signInWithPassword({
+              email: matchedProfile.email,
+              password: pass,
+            });
+            if (retryAuth.data?.user && !retryAuth.error) {
+              data = retryAuth.data;
+              error = null;
+            }
+          }
+        } catch {}
+      }
 
       // Auto bootstrap superadmin jika akun admin@admin.com belum ada
       if (error && (authEmail === 'admin@admin.com' || authEmail === 'admin@epresensi.com') && pass === '123456') {
@@ -678,12 +706,29 @@ export class AttendanceService {
     const status = params.type === 'izin_sakit' ? (isSakit ? 'sakit' : 'izin') : (params.status || 'hadir');
     const sType = params.sessionType || (params.type === 'izin_sakit' ? 'izin_sakit' : 'masuk');
 
+    // Validasi & pastikan user_id berupa UUID valid
+    let targetUserId = params.user.id;
+    if (!isUuid(targetUserId)) {
+      if (params.user.email) {
+        const { data: p } = await supabase.from('profiles').select('id').eq('email', params.user.email.trim().toLowerCase()).maybeSingle();
+        if (p?.id && isUuid(p.id)) {
+          targetUserId = p.id;
+        }
+      }
+    }
+
+    if (!isUuid(targetUserId)) {
+      throw new Error('Sesi akun tidak valid atau belum terdaftar di database. Silakan keluar lalu masuk kembali dengan akun resmi.');
+    }
+
+    const validCompanyId = isUuid(params.user.companyId) ? params.user.companyId : null;
+
     // Anti-duplikat presensi di sisi klien sebelum insert
     if (sType === 'masuk' || sType === 'pulang') {
       const { data: existing } = await supabase
         .from('attendances')
         .select('id')
-        .eq('user_id', params.user.id)
+        .eq('user_id', targetUserId)
         .eq('date', today)
         .eq('session_type', sType)
         .maybeSingle();
@@ -697,7 +742,7 @@ export class AttendanceService {
       const { data: existingPending } = await supabase
         .from('attendances')
         .select('id')
-        .eq('user_id', params.user.id)
+        .eq('user_id', targetUserId)
         .eq('session_type', 'izin_sakit')
         .eq('approval_status', 'pending')
         .eq('start_date', reqStart)
@@ -710,7 +755,7 @@ export class AttendanceService {
     }
 
     const newRecordData: any = {
-      user_id: params.user.id,
+      user_id: targetUserId,
       user_name: params.user.fullName,
       user_email: params.user.email,
       type: params.type,
@@ -729,7 +774,7 @@ export class AttendanceService {
       photo_url: params.photoUrl ?? null,
       document_url: params.documentUrl ?? null,
       approval_status: sType === 'izin_sakit' ? 'pending' : 'approved',
-      company_id: params.user.companyId || null,
+      company_id: validCompanyId,
     };
 
     const { data, error } = await supabase
