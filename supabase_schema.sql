@@ -326,3 +326,20 @@ BEGIN
     department = 'Management',
     company_id = '00000000-0000-0000-0000-000000000001';
 END $$;
+
+-- -----------------------------------------------------
+-- 11. Trigger Otomatis Hapus Auth User saat Profil Dihapus
+-- -----------------------------------------------------
+CREATE OR REPLACE FUNCTION public.fn_cleanup_auth_user_on_profile_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM auth.users WHERE id = OLD.id;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_cleanup_auth_user ON public.profiles;
+CREATE TRIGGER trg_cleanup_auth_user
+AFTER DELETE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.fn_cleanup_auth_user_on_profile_delete();

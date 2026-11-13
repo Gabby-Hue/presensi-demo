@@ -290,6 +290,8 @@ export class AttendanceService {
     const { authEmail, mapped } = toAuthEmail(typedRaw);
 
     try {
+      let newUserId: string | null = null;
+
       const { data: authData, error: authError } = await signUpClient.auth.signUp({
         email: authEmail,
         password: params.password,
@@ -301,13 +303,68 @@ export class AttendanceService {
         },
       });
 
-      if (authError) {
-        return { success: false, message: translateAuthError(authError.message) };
+      if (authData?.user?.id) {
+        newUserId = authData.user.id;
       }
 
-      const newUserId = authData.user?.id;
-      if (!newUserId) {
-        return { success: false, message: 'Gagal membuat pengguna di sistem autentikasi.' };
+      // Jika user sudah pernah terdaftar di auth.users (misal akun sebelumnya pernah dihapus dari profiles):
+      if (!newUserId || authError) {
+        const errLower = (authError?.message || '').toLowerCase();
+        const isAlreadyRegistered =
+          errLower.includes('already registered') ||
+          errLower.includes('already been registered') ||
+          errLower.includes('user_already_exists');
+
+        if (isAlreadyRegistered || !newUserId) {
+          // Cek apakah email ini benar-benar sedang dipakai oleh user AKTIF di profiles
+          const { data: existingActive } = await supabase
+            .from('profiles')
+            .select('id, email, full_name')
+            .eq('email', authEmail)
+            .maybeSingle();
+
+          if (existingActive) {
+            return {
+              success: false,
+              message: `Email "${typedRaw}" sudah aktif digunakan oleh ${existingActive.full_name}. Gunakan email lain atau ubah data akun yang ada.`,
+            };
+          }
+
+          // Akun ini pernah dihapus dari profiles sehingga tersisa di auth.users.
+          // Kita klaim ulang (revive) akun ini:
+          let revivedLogin = await signUpClient.auth.signInWithPassword({
+            email: authEmail,
+            password: params.password,
+          });
+
+          if (!revivedLogin.data?.user) {
+            revivedLogin = await signUpClient.auth.signInWithPassword({
+              email: authEmail,
+              password: '123456',
+            });
+          }
+
+          if (revivedLogin.data?.user) {
+            newUserId = revivedLogin.data.user.id;
+            try {
+              await signUpClient.auth.updateUser({
+                password: params.password,
+                data: {
+                  full_name: cleanName,
+                  role: params.role || 'employee',
+                },
+              });
+            } catch {}
+            await signUpClient.auth.signOut();
+          } else {
+            return {
+              success: false,
+              message: translateAuthError(authError?.message || 'Email ini sudah terdaftar di sistem autentikasi.'),
+            };
+          }
+        } else {
+          return { success: false, message: translateAuthError(authError!.message) };
+        }
       }
 
       const { error: profileError } = await supabase.from('profiles').upsert({

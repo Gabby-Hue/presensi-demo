@@ -293,7 +293,7 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
         icon="grid"
       >
         <Text style={styles.headerNotice}>
-          Struktur departemen standar awal cabang: <Text style={styles.headerNoticeBold}>HR, Engginer, dan Sales</Text>. Anda dapat menambah divisi baru, mengubah nama, memindahkan karyawan, atau menghapus departemen yang sudah tidak digunakan.
+          Struktur departemen standar awal cabang: <Text style={styles.headerNoticeBold}>HR, Engineering, dan Sales</Text>. Anda dapat menambah departemen baru, mengubah nama, memindahkan karyawan, atau menghapus departemen yang sudah tidak digunakan.
         </Text>
 
         <View style={styles.addFormRow}>
