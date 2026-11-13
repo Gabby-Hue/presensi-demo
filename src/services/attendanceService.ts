@@ -551,20 +551,28 @@ export class AttendanceService {
     return null;
   }
 
-  static async getOfficeList(): Promise<OfficeSettings[]> {
+  static async getOfficeList(companyId?: string): Promise<OfficeSettings[]> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('office_settings')
         .select('*')
         .order('updated_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        cachedOffices = data.map(mapOffice);
-        currentOfficeSettings = cachedOffices[0];
-        return cachedOffices;
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        const mapped = data.map(mapOffice);
+        if (mapped.length > 0) {
+          cachedOffices = mapped;
+          currentOfficeSettings = mapped[0];
+        }
+        return mapped;
       }
     } catch {}
-    return cachedOffices;
+    return [];
   }
 
   static async addOffice(params: {
@@ -710,15 +718,20 @@ export class AttendanceService {
     }
   }
 
-  static async getTodayAttendances(): Promise<AttendanceRecord[]> {
+  static async getTodayAttendances(companyId?: string): Promise<AttendanceRecord[]> {
     const today = todayWIB();
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('attendances')
         .select('*')
         .eq('date', today)
         .order('clock_in_time', { ascending: false });
 
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
       if (error || !data) return [];
       return data.map(mapRecord);
     } catch {
@@ -885,14 +898,19 @@ export class AttendanceService {
     }
   }
 
-  static async getPendingApprovals(): Promise<AttendanceRecord[]> {
+  static async getPendingApprovals(companyId?: string): Promise<AttendanceRecord[]> {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('attendances')
         .select('*')
         .eq('approval_status', 'pending')
         .order('clock_in_time', { ascending: false });
 
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+
+      const { data, error } = await query;
       if (!error && data) {
         return data.map(mapRecord);
       }
@@ -905,9 +923,13 @@ export class AttendanceService {
     startDate?: string;
     endDate?: string;
     limit?: number;
+    companyId?: string;
   }): Promise<AttendanceRecord[]> {
     try {
       let query = supabase.from('attendances').select('*').order('clock_in_time', { ascending: false });
+      if (params?.companyId) {
+        query = query.eq('company_id', params.companyId);
+      }
       if (params?.month) {
         query = query.gte('date', `${params.month}-01`).lte('date', `${params.month}-31`);
       }
@@ -928,22 +950,52 @@ export class AttendanceService {
     return [];
   }
 
-  static async getDepartments(_companyId?: string): Promise<string[]> {
+  static async getDepartments(companyId?: string): Promise<string[]> {
     try {
-      const { data, error } = await supabase.from('departments').select('name').order('name');
-      if (!error && data) {
+      let query = supabase.from('departments').select('name').order('name');
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
         return Array.from(new Set(data.map((d: any) => d.name).filter(Boolean)));
       }
+      return ['HR', 'Engineering', 'Sales'];
     } catch {}
-    return [];
+    return ['HR', 'Engineering', 'Sales'];
   }
 
-  static async getDepartmentItems(_companyId?: string): Promise<DepartmentItem[]> {
+  static async getDepartmentItems(companyId?: string): Promise<DepartmentItem[]> {
     try {
-      const { data, error } = await supabase.from('departments').select('*').order('name');
-      if (error || !data) return [];
+      let query = supabase.from('departments').select('*').order('name');
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+      let { data, error } = await query;
+      if (error) return [];
 
-      const { data: profiles } = await supabase.from('profiles').select('department, company_id');
+      // Auto-inisialisasi 3 departemen standar jika cabang belum memiliki departemen
+      if (companyId && (!data || data.length === 0)) {
+        try {
+          const defaults = [
+            { name: 'HR', company_id: companyId },
+            { name: 'Engineering', company_id: companyId },
+            { name: 'Sales', company_id: companyId },
+          ];
+          const ins = await supabase.from('departments').insert(defaults).select('*');
+          if (ins.data && ins.data.length > 0) {
+            data = ins.data;
+          }
+        } catch {}
+      }
+
+      if (!data) return [];
+
+      let profQuery = supabase.from('profiles').select('department, company_id');
+      if (companyId) {
+        profQuery = profQuery.eq('company_id', companyId);
+      }
+      const { data: profiles } = await profQuery;
       const deptCounts: Record<string, number> = {};
       (profiles || []).forEach((p: any) => {
         const d = p.department || 'None';

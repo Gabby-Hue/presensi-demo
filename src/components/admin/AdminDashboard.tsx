@@ -557,7 +557,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </View>
 
           {/* Department Breakdown Section */}
-          <AdminDepartmentReport users={users} offices={officeList} />
+          <AdminDepartmentReport
+            users={users}
+            offices={officeList}
+            companyId={currentAdmin.companyId || undefined}
+          />
 
           {/* Unabsent Employees Warning Banner */}
           <Card
@@ -622,7 +626,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <GeofenceSettings
           offices={officeList}
           onAdd={async (params) => {
-            const res = await AttendanceService.addOffice(params);
+            const res = await AttendanceService.addOffice({
+              ...params,
+              companyId: currentAdmin.companyId || null,
+            });
             if (res.success) onRefreshOffices();
             return { success: res.success, message: res.message };
           }}

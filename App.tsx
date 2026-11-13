@@ -116,13 +116,20 @@ function AppContent() {
     }
   };
 
+  const getAdminCompanyId = (user: UserProfile | null) => {
+    if (!user) return undefined;
+    if (user.role === 'superadmin') return undefined; // superadmin melihat pusat/semua
+    return user.companyId || undefined;
+  };
+
   const loadDataForRole = async () => {
-    let offices = await AttendanceService.getOfficeList();
-    if (offices.length === 0) {
+    const compId = getAdminCompanyId(currentUser);
+    let offices = await AttendanceService.getOfficeList(compId);
+    if (offices.length === 0 && !isAdminRole(currentUser?.role)) {
       offices = [INITIAL_OFFICE_SETTINGS];
     }
     setOfficeList(offices);
-    setOfficeSettings(offices[0]);
+    setOfficeSettings(offices[0] || null);
 
     if (currentUser) {
       const history = await AttendanceService.getUserAttendances(currentUser.id);
@@ -132,12 +139,12 @@ function AppContent() {
       setUserTodayStatus(today);
 
       if (isAdminRole(currentUser.role)) {
-        let users = await AttendanceService.getAllUsers();
-        if (users.length === 0) {
+        let users = await AttendanceService.getAllUsers(compId);
+        if (users.length === 0 && !compId) {
           users = INITIAL_USERS;
         }
-        const attendances = await AttendanceService.getTodayAttendances();
-        const pending = await AttendanceService.getPendingApprovals();
+        const attendances = await AttendanceService.getTodayAttendances(compId);
+        const pending = await AttendanceService.getPendingApprovals(compId);
         setAllUsers(users);
         setTodayAttendances(attendances);
         setPendingApprovals(pending);
@@ -146,24 +153,28 @@ function AppContent() {
   };
 
   const handleRefreshOffices = async () => {
-    const offices = await AttendanceService.getOfficeList();
+    const compId = getAdminCompanyId(currentUser);
+    const offices = await AttendanceService.getOfficeList(compId);
     setOfficeList(offices);
     if (offices.length > 0) setOfficeSettings({ ...offices[0] });
+    else setOfficeSettings(null);
   };
 
   useEffect(() => {
     if (!currentUser || !isAdminRole(currentUser.role)) return;
     const refreshAdminData = async () => {
       try {
+        const compId = getAdminCompanyId(currentUser);
         const [offices, users, attendances, pending] = await Promise.all([
-          AttendanceService.getOfficeList(),
-          AttendanceService.getAllUsers(),
-          AttendanceService.getTodayAttendances(),
-          AttendanceService.getPendingApprovals(),
+          AttendanceService.getOfficeList(compId),
+          AttendanceService.getAllUsers(compId),
+          AttendanceService.getTodayAttendances(compId),
+          AttendanceService.getPendingApprovals(compId),
         ]);
         setOfficeList(offices);
         if (offices.length > 0) setOfficeSettings({ ...offices[0] });
-        if (users.length > 0) setAllUsers(users);
+        else setOfficeSettings(null);
+        setAllUsers(users);
         setTodayAttendances(attendances);
         setPendingApprovals(pending);
       } catch (e) {
@@ -172,7 +183,7 @@ function AppContent() {
     };
     const timer = setInterval(refreshAdminData, 10000);
     return () => clearInterval(timer);
-  }, [currentUser?.id, currentUser?.role]);
+  }, [currentUser?.id, currentUser?.role, currentUser?.companyId]);
 
   const handleLogout = async () => {
     setLoading(true);
