@@ -229,13 +229,13 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
 
     switch (status) {
       case 'belum_bergabung':
-        return { bg: colors.surfaceSoft, text: colors.faint, border: colors.border, isToday: false, isHoliday: false };
+        return { bg: colors.surfaceSoft, text: colors.faint, border: colors.border, borderWidth: 1, isToday: false, isHoliday: false };
       case 'izin':
-        return { bg: '#FFFFFF', text: colors.izin, border: colors.izin, isToday, isHoliday };
+        return { bg: '#FFFFFF', text: colors.izin, border: colors.izin, borderWidth: 3.5, isToday, isHoliday };
       case 'lengkap_izin':
-        return { bg: colors.primary, text: '#FFFFFF', border: colors.izin, isToday, isHoliday };
+        return { bg: colors.primary, text: '#FFFFFF', border: colors.izin, borderWidth: 3.5, isToday, isHoliday };
       case 'menunggu':
-        return { bg: '#FFFFFF', text: '#B45309', border: '#F59E0B', isToday, isHoliday };
+        return { bg: '#FFFFFF', text: '#B45309', border: '#F59E0B', borderWidth: 2, isToday, isHoliday };
       case 'libur':
         return { bg: colors.izin, text: '#FFFFFF', isToday, isHoliday };
       case 'lengkap':
@@ -245,7 +245,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
       case 'absen':
         return { bg: '#64748B', text: '#FFFFFF', isToday, isHoliday };
       case 'hari_ini_kosong':
-        return { bg: '#FFFFFF', text: colors.primary, border: colors.primary, isToday, isHoliday };
+        return { bg: '#FFFFFF', text: colors.primary, border: colors.primary, borderWidth: 2, isToday, isHoliday };
       default:
         return { bg: '#E8F0FE', text: '#64748B', isToday: false, isHoliday };
     }
@@ -363,7 +363,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
                   {
                     backgroundColor: c.bg,
                     borderColor: isSelected ? colors.ink : c.border || 'transparent',
-                    borderWidth: isSelected ? 2.5 : c.border ? 2.5 : 0,
+                    borderWidth: isSelected ? 3.5 : (c.borderWidth !== undefined ? c.borderWidth : (c.border ? 3.5 : 0)),
                   },
                 ]}
               >
@@ -384,7 +384,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
             <Text style={styles.legendLabel}>Lengkap</Text>
           </View>
           <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: colors.primary, borderColor: colors.izin, borderWidth: 1.5 }]} />
+            <View style={[styles.legendDot, { backgroundColor: colors.primary, borderColor: colors.izin, borderWidth: 2.5 }]} />
             <Text style={styles.legendLabel}>Lengkap (Izin Setengah Hari)</Text>
           </View>
           <View style={styles.legendPill}>
@@ -392,7 +392,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
             <Text style={styles.legendLabel}>1 Sesi</Text>
           </View>
           <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: '#FFFFFF', borderColor: colors.izin, borderWidth: 1.5 }]} />
+            <View style={[styles.legendDot, { backgroundColor: '#FFFFFF', borderColor: colors.izin, borderWidth: 2.5 }]} />
             <Text style={styles.legendLabel}>Izin/Sakit</Text>
           </View>
           <View style={styles.legendPill}>
