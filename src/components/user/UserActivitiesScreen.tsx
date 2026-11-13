@@ -20,12 +20,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
 import {
   ActivityRecord,
-  DEFAULT_PROJECTS,
   createActivity,
   deleteActivity,
   fetchActivities,
 } from '../../services/activityService';
-import { uploadFile } from '../../lib/api';
+import { StorageService } from '../../services/storageService';
 import { select, succeed } from '../../services/feedbackService';
 import { getCurrentLocation } from '../../services/locationService';
 import { colors, fontSize, neoShadow, radius, spacing } from '../../theme';
@@ -92,7 +91,7 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Form State
-  const [selectedProject, setSelectedProject] = useState('KEGIATAN');
+  const [selectedProject, setSelectedProject] = useState('');
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('10:00');
   const [description, setDescription] = useState('');
@@ -177,7 +176,7 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
 
   const handleOpenAddModal = () => {
     void select();
-    setSelectedProject('KEGIATAN');
+    setSelectedProject('');
     setDescription('');
     setPhotoUri(null);
     setPhotoName('');
@@ -189,6 +188,29 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
 
   const handleTakePhoto = async () => {
     void select();
+    if (Platform.OS === 'web') {
+      try {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        (input as any).capture = 'environment';
+        input.onchange = (e: any) => {
+          const file = e.target?.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              setPhotoUri(reader.result as string);
+              setPhotoName(file.name || `kegiatan_foto_${Date.now()}.jpg`);
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+        return;
+      } catch (err) {
+        console.warn('Web camera file input error:', err);
+      }
+    }
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
@@ -210,6 +232,28 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
 
   const handlePickGallery = async () => {
     void select();
+    if (Platform.OS === 'web') {
+      try {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = (e: any) => {
+          const file = e.target?.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              setPhotoUri(reader.result as string);
+              setPhotoName(file.name || `kegiatan_galeri_${Date.now()}.jpg`);
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+        return;
+      } catch (err) {
+        console.warn('Web gallery file input error:', err);
+      }
+    }
     try {
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -251,7 +295,7 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
       let uploadedPhotoUrl: string | null = null;
       if (photoUri) {
         try {
-          uploadedPhotoUrl = await uploadFile('photo', photoUri, photoName || 'kegiatan.jpg');
+          uploadedPhotoUrl = await StorageService.uploadFile('photo', photoUri, photoName || 'kegiatan.jpg');
         } catch (uploadErr) {
           console.warn('Upload foto kegiatan gagal:', uploadErr);
         }
@@ -269,10 +313,10 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
         console.warn('GPS tidak tersedia:', locErr);
       }
 
-      const proj = DEFAULT_PROJECTS.find((p) => p.code === selectedProject);
+      const taskName = selectedProject.trim() || 'Aktivitas Umum';
       await createActivity({
-        projectCode: selectedProject,
-        projectName: proj ? proj.name : 'Aktivitas Harian',
+        projectCode: taskName,
+        projectName: taskName,
         activityDate: selectedDate,
         startTime,
         endTime,
@@ -573,7 +617,12 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
         onClose={() => setIsModalOpen(false)}
         title="Catat Kegiatan Baru"
       >
-        <View style={styles.modalBody}>
+        <ScrollView
+          style={styles.modalScroll}
+          contentContainerStyle={styles.modalScrollContent}
+          showsVerticalScrollIndicator={true}
+          keyboardShouldPersistTaps="handled"
+        >
           {formError && (
             <View style={styles.formErrorBox}>
               <Feather name="alert-circle" size={16} color={colors.danger} style={{ marginRight: 6 }} />
@@ -581,60 +630,18 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
             </View>
           )}
 
-          {/* Tag Proyek / Bidang Tugas */}
+          {/* Input Proyek / Bidang Tugas Mandiri */}
           <Text style={styles.formLabel}>Proyek / Bidang Tugas</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.projectScrollRow}
-          >
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => {
-                void select();
-                setSelectedProject('KEGIATAN');
-              }}
-              style={[
-                styles.projectChip,
-                selectedProject === 'KEGIATAN' && styles.projectChipActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.projectChipText,
-                  selectedProject === 'KEGIATAN' && styles.projectChipTextActive,
-                ]}
-              >
-                Aktivitas Umum
-              </Text>
-            </TouchableOpacity>
-            {DEFAULT_PROJECTS.map((p) => (
-              <TouchableOpacity
-                key={p.code}
-                activeOpacity={0.8}
-                onPress={() => {
-                  void select();
-                  setSelectedProject(p.code);
-                }}
-                style={[
-                  styles.projectChip,
-                  selectedProject === p.code && styles.projectChipActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.projectChipText,
-                    selectedProject === p.code && styles.projectChipTextActive,
-                  ]}
-                >
-                  {p.code} • {p.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <TextInput
+            style={styles.projectInput}
+            value={selectedProject}
+            onChangeText={setSelectedProject}
+            placeholder="Ketik nama proyek / tugas (contoh: Maintenance, Desain UI, dll.)..."
+            placeholderTextColor={colors.faint}
+          />
 
           {/* Rentang Jam Kerja */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
             <Text style={styles.formLabel}>Rentang Jam Kegiatan</Text>
             <Text style={[styles.regulerLimitText, isOvertimeAllowed && { color: colors.secondary, fontWeight: '700' }]}>
               {isOvertimeAllowed ? 'Mode Lembur (s.d. 23:59 WIB)' : `Batas Kerja: s.d. ${workEndTime} WIB`}
@@ -783,7 +790,7 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
               onPress={handleSubmit}
             />
           </View>
-        </View>
+        </ScrollView>
       </Modal>
 
       {/* Modal Preview Foto Penuh */}
@@ -1209,8 +1216,25 @@ const styles = StyleSheet.create({
   },
 
   // Modal
+  modalScroll: {
+    maxHeight: 520,
+  },
+  modalScrollContent: {
+    gap: 12,
+    paddingBottom: 20,
+  },
   modalBody: {
     gap: 10,
+  },
+  projectInput: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: colors.ink,
   },
   formErrorBox: {
     flexDirection: 'row',

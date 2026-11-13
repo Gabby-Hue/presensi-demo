@@ -1046,18 +1046,35 @@ export class AttendanceService {
     opts?: { note?: string; full?: boolean }
   ): Promise<{ success: boolean; message: string; attendance?: AttendanceRecord }> {
     try {
-      if (opts?.full) {
-        const { error } = await supabase.from('attendances').delete().eq('id', id);
-        if (error) throw new Error(error.message);
-        return { success: true, message: 'Pengajuan izin berhasil dicabut.' };
+      const curDate = todayDate || todayWIB();
+      const { data: rec } = await supabase.from('attendances').select('*').eq('id', id).maybeSingle();
+
+      if (!rec) {
+        return { success: false, message: 'Data pengajuan izin tidak ditemukan.' };
       }
 
-      const curDate = todayDate || todayWIB();
+      const startDate = (rec.start_date || rec.date || '').slice(0, 10);
+      const endDate = (rec.end_date || rec.date || '').slice(0, 10);
+
+      // Jika opsi full, atau pengajuan masih pending, atau izin 1 hari saja (startDate === endDate), atau belum berjalan (startDate >= curDate):
+      // Langsung hapus record agar tanggal benar-benar bersih dan bebas untuk presensi
+      if (opts?.full || rec.approval_status === 'pending' || startDate >= curDate || startDate === endDate) {
+        const { error } = await supabase.from('attendances').delete().eq('id', id);
+        if (error) throw new Error(error.message);
+        return { success: true, message: 'Pengajuan izin berhasil dicabut/dibatalkan.' };
+      }
+
+      // Jika izin multi-hari yang sudah berjalan di masa lalu (misal izin tgl 10-15, dan hari ini tgl 13):
+      // Mundurkan end_date ke hari kemarin agar hari ini & seterusnya bebas untuk presensi
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = todayWIB(yesterday);
+
       const { data, error } = await supabase
         .from('attendances')
         .update({
-          end_date: curDate,
-          review_note: opts?.note || 'Disesuaikan karena masuk lebih awal',
+          end_date: yesterdayStr >= startDate ? yesterdayStr : startDate,
+          review_note: opts?.note || 'Izin dicabut / kembali bekerja lebih awal',
         })
         .eq('id', id)
         .select()
@@ -1070,7 +1087,7 @@ export class AttendanceService {
         attendance: data ? mapRecord(data) : undefined,
       };
     } catch (e: any) {
-      return { success: false, message: e?.message || 'Gagal mencabut izin.' };
+      return { success: false, message: e?.message || 'Gagal membatalkan izin.' };
     }
   }
 

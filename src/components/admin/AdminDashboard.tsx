@@ -153,13 +153,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onRefreshUsers();
   };
 
-  const handleCancelLeave = async (note?: string, full = false) => {
+  const handleCancelLeave = async (note?: string, full = true) => {
     if (!selectedRecord) return;
     setReviewing(true);
     const res = await AttendanceService.cancelLeave(
       selectedRecord.id,
       todayWIB(),
-      { note, full }
+      { note, full: true }
     );
     setReviewing(false);
     if (!res.success) {

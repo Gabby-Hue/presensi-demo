@@ -188,6 +188,17 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
                   <Text style={styles.actionText}>{processing ? 'Memproses...' : 'Tolak'}</Text>
                 </TouchableOpacity>
               )}
+              {onCancelLeave && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  disabled={processing}
+                  onPress={() => onCancelLeave(note, true)}
+                  style={[styles.actionBtn, styles.revokeBtn]}
+                >
+                  <Feather name="trash-2" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.actionText}>{processing ? 'Memproses...' : 'Hapus Izin'}</Text>
+                </TouchableOpacity>
+              )}
               {onApprove && (
                 <TouchableOpacity
                   activeOpacity={0.8}

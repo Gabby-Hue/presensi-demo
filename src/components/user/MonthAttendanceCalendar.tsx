@@ -10,12 +10,13 @@ import { colors, fontSize, radius, spacing } from '../../theme';
 import { select } from '../../services/feedbackService';
 import { isNationalHoliday, getHolidayName } from '../../utils/holidays';
 
-export type DayStatus = 'lengkap' | 'satu_sesi' | 'izin' | 'menunggu' | 'libur' | 'absen' | 'akan_datang' | 'hari_ini_kosong' | 'belum_bergabung';
+export type DayStatus = 'lengkap' | 'lengkap_izin' | 'satu_sesi' | 'izin' | 'menunggu' | 'libur' | 'absen' | 'akan_datang' | 'hari_ini_kosong' | 'belum_bergabung';
 
 export interface DayInfo {
   hasMasuk: boolean;
   hasPulang: boolean;
   hasIzin: boolean;
+  hasHalfDayLeave: boolean;
   hasPending: boolean;
 }
 
@@ -35,18 +36,20 @@ export const buildAttendanceMap = (
       if (!isLembur) {
         const sDate = (record.startDate || record.date || '').slice(0, 10);
         const eDate = (record.endDate || record.date || '').slice(0, 10);
+        const isHalf = !!record.reason && /setengah\s*hari/i.test(record.reason);
 
         if (sDate && eDate) {
           for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
             const dateStr = `${year}-${pad(month + 1)}-${pad(dayNum)}`;
             if (dateStr >= sDate && dateStr <= eDate) {
               if (!map[dayNum]) {
-                map[dayNum] = { hasMasuk: false, hasPulang: false, hasIzin: false, hasPending: false };
+                map[dayNum] = { hasMasuk: false, hasPulang: false, hasIzin: false, hasHalfDayLeave: false, hasPending: false };
               }
               if (record.approvalStatus === 'pending') {
                 map[dayNum].hasPending = true;
               } else if (record.approvalStatus === 'approved') {
                 map[dayNum].hasIzin = true;
+                if (isHalf) map[dayNum].hasHalfDayLeave = true;
               }
             }
           }
@@ -72,7 +75,7 @@ export const buildAttendanceMap = (
       d = rd.getDate();
     }
     if (y === year && m === month && d >= 1 && d <= daysInMonth) {
-      if (!map[d]) map[d] = { hasMasuk: false, hasPulang: false, hasIzin: false, hasPending: false };
+      if (!map[d]) map[d] = { hasMasuk: false, hasPulang: false, hasIzin: false, hasHalfDayLeave: false, hasPending: false };
       if (record.sessionType === 'masuk') map[d].hasMasuk = true;
       if (record.sessionType === 'pulang') map[d].hasPulang = true;
     }
@@ -88,9 +91,18 @@ export const getDayStatus = (
   isHoliday = false,
   isBeforeJoin = false
 ): DayStatus => {
-  if (info?.hasIzin) return 'izin';
+  // Jika ada izin (terutama setengah hari) dan juga ada presensi (lengkap atau 1 sesi):
+  // Dianggap sebagai hari kerja Lengkap dengan aksen border merah izin
+  if (info?.hasIzin && info?.hasMasuk && info?.hasPulang) return 'lengkap_izin';
+  if (info?.hasHalfDayLeave && (info?.hasMasuk || info?.hasPulang)) return 'lengkap_izin';
+  if (info?.hasIzin && (info?.hasMasuk || info?.hasPulang)) return 'lengkap_izin';
+
+  // Presensi murni tanpa izin
   if (info?.hasMasuk && info?.hasPulang) return 'lengkap';
   if (info?.hasMasuk || info?.hasPulang) return 'satu_sesi';
+
+  // Izin murni (seharian penuh tanpa presensi)
+  if (info?.hasIzin) return 'izin';
   if (info?.hasPending) return 'menunggu';
   if (!info && (isWeekend || isHoliday)) return 'libur';
   if (isBeforeJoin && !info) return 'belum_bergabung';
@@ -192,7 +204,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
       const isHoliday = isNationalHoliday(dateKey);
       const isBeforeJoin = Boolean(userJoinDateKey && dateKey < userJoinDateKey);
       const st = getDayStatus(info, isPast, isToday, isWeekend, isHoliday, isBeforeJoin);
-      if (st === 'lengkap') hadir++;
+      if (st === 'lengkap' || st === 'lengkap_izin') hadir++;
       else if (st === 'satu_sesi') satuSesi++;
       else if (st === 'izin') izin++;
       else if (st === 'absen') alpa++;
@@ -202,6 +214,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
 
   // Skema warna asli E-Presensi:
   // alpa = abu-abu solid, 1 sesi = kuning solid, lengkap = biru solid,
+  // lengkap_izin = biru solid tapi border merah (izin setengah hari),
   // izin = merah hollow (putih + border merah), Sabtu-Minggu / Libur Nasional kosong = merah solid
   const getDayColors = (day: number) => {
     const info = attendanceMap[day];
@@ -219,6 +232,8 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
         return { bg: colors.surfaceSoft, text: colors.faint, border: colors.border, isToday: false, isHoliday: false };
       case 'izin':
         return { bg: '#FFFFFF', text: colors.izin, border: colors.izin, isToday, isHoliday };
+      case 'lengkap_izin':
+        return { bg: colors.primary, text: '#FFFFFF', border: colors.izin, isToday, isHoliday };
       case 'menunggu':
         return { bg: '#FFFFFF', text: '#B45309', border: '#F59E0B', isToday, isHoliday };
       case 'libur':
@@ -348,7 +363,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
                   {
                     backgroundColor: c.bg,
                     borderColor: isSelected ? colors.ink : c.border || 'transparent',
-                    borderWidth: isSelected ? 2 : c.border ? 1.5 : 0,
+                    borderWidth: isSelected ? 2.5 : c.border ? 2.5 : 0,
                   },
                 ]}
               >
@@ -367,6 +382,10 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
           <View style={styles.legendPill}>
             <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
             <Text style={styles.legendLabel}>Lengkap</Text>
+          </View>
+          <View style={styles.legendPill}>
+            <View style={[styles.legendDot, { backgroundColor: colors.primary, borderColor: colors.izin, borderWidth: 1.5 }]} />
+            <Text style={styles.legendLabel}>Lengkap (Izin Setengah Hari)</Text>
           </View>
           <View style={styles.legendPill}>
             <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />

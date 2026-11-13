@@ -104,7 +104,7 @@ export const AdminEmployeeRecap: React.FC<AdminEmployeeRecapProps> = ({
       // Hari yang akan datang & hari ini yang masih kosong tidak dihitung
       if (st === 'akan_datang' || st === 'hari_ini_kosong') continue;
       if (st !== 'libur') terhitung++;
-      if (st === 'lengkap') lengkap++;
+      if (st === 'lengkap' || st === 'lengkap_izin') lengkap++;
       else if (st === 'satu_sesi') satuSesi++;
       else if (st === 'izin') izin++;
       else if (st === 'libur') libur++;

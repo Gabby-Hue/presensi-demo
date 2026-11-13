@@ -498,7 +498,7 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     closeAppDialog();
     setSubmitting(true);
     try {
-      const res = await AttendanceService.cancelLeave(leaveId, todayStr);
+      const res = await AttendanceService.cancelLeave(leaveId, todayStr, { full: true });
       if (res.success) {
         if (onRefreshData) await onRefreshData();
         else if (onUpdateUser) onUpdateUser(user);
@@ -1981,6 +1981,31 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
                 )}
               </View>
             ) : null}
+
+            {(selectedLog.type === 'izin_sakit' || selectedLog.sessionType === 'izin_sakit') && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  select();
+                  const targetId = selectedLog.id;
+                  setSelectedLog(null);
+                  openAppDialog({
+                    title: 'Batalkan Pengajuan Izin?',
+                    message: 'Apakah Anda yakin ingin membatalkan/mencabut pengajuan izin ini? Data izin akan dihapus sehingga Anda dapat melakukan presensi kerja kembali.',
+                    icon: 'alert-triangle',
+                    variant: 'danger',
+                    singleButton: false,
+                    confirmText: 'Ya, Batalkan Izin',
+                    cancelText: 'Kembali',
+                    onConfirm: () => handleCancelLeaveAndClockIn(targetId),
+                  });
+                }}
+                style={styles.cancelLeaveModalBtn}
+              >
+                <Feather name="trash-2" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.cancelLeaveModalBtnText}>Batalkan / Cabut Izin Ini</Text>
+              </TouchableOpacity>
+            )}
           </View>
           </ScrollView>
         )}
@@ -3613,6 +3638,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: colors.primaryDark,
+  },
+  cancelLeaveModalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.danger,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  cancelLeaveModalBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
 
   // 3/4 Height Profile Bottom Sheet Drawer
