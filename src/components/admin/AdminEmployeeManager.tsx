@@ -291,7 +291,7 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
                   {item.fullName.substring(0, 2).toUpperCase()}
                 </Text>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.userInfo}>
                 <Text style={styles.userName}>{item.fullName}</Text>
                 <Text style={styles.userEmail}>{item.email}</Text>
                 <Text style={styles.userEmail}>{item.department || 'Staff'}</Text>
@@ -318,6 +318,7 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
                     : 'Belum ada perangkat terkunci'}
                 </Text>
               </View>
+              <View style={styles.userActions}>
               <TouchableOpacity
                 onPress={() => {
                   select();
@@ -346,6 +347,7 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
               <TouchableOpacity onPress={() => handleDelete(item)} style={styles.iconBtn} hitSlop={12} disabled={deletingId === item.id}>
                 <Feather name="trash-2" size={18} color={deletingId === item.id ? colors.faint : colors.danger} />
               </TouchableOpacity>
+              </View>
             </View>
           ))
         )}
@@ -521,7 +523,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 16,
   },
+  userInfo: { flex: 1, minWidth: 170 },
+  userActions: { flexDirection: 'row', marginLeft: 'auto' },
   userRow: {
+    flexWrap: 'wrap',
+    rowGap: 6,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,

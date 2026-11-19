@@ -265,7 +265,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <View style={[styles.kpiCard, neoShadow.sm, isWide && styles.kpiCardWide]}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTopRow}>
-                  <View>
+                  <View style={styles.kpiLeft}>
                     <Text style={styles.kpiLabel}>Total PT / Cabang</Text>
                     <View style={styles.kpiValueRow}>
                       <Text style={styles.kpiNumber}>{companiesList.length || 1}</Text>
@@ -282,7 +282,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <View style={[styles.kpiCard, neoShadow.sm, isWide && styles.kpiCardWide]}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTopRow}>
-                  <View>
+                  <View style={styles.kpiLeft}>
                     <Text style={styles.kpiLabel}>Admin Cabang Bertugas</Text>
                     <View style={styles.kpiValueRow}>
                       <Text style={styles.kpiNumber}>
@@ -301,7 +301,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <View style={[styles.kpiCard, neoShadow.sm, isWide && styles.kpiCardWide]}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTopRow}>
-                  <View>
+                  <View style={styles.kpiLeft}>
                     <Text style={styles.kpiLabel}>Total Karyawan Grup</Text>
                     <View style={styles.kpiValueRow}>
                       <Text style={styles.kpiNumber}>{totalEmployees}</Text>
@@ -318,7 +318,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <View style={[styles.kpiCard, neoShadow.sm, isWide && styles.kpiCardWide]}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTopRow}>
-                  <View>
+                  <View style={styles.kpiLeft}>
                     <Text style={styles.kpiLabel}>Rata-rata Kehadiran Hari Ini</Text>
                     <View style={styles.kpiValueRow}>
                       <Text style={styles.kpiNumber}>{presentPct}%</Text>
@@ -516,7 +516,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <View style={[styles.kpiCard, neoShadow.sm, isWide && styles.kpiCardWide]}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTopRow}>
-                  <View>
+                  <View style={styles.kpiLeft}>
                     <Text style={styles.kpiLabel}>Hadir Hari Ini</Text>
                     <View style={styles.kpiValueRow}>
                       <Text style={styles.kpiNumber}>{presentCount}</Text>
@@ -538,7 +538,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <View style={[styles.kpiCard, neoShadow.sm, isWide && styles.kpiCardWide]}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTopRow}>
-                  <View>
+                  <View style={styles.kpiLeft}>
                     <Text style={styles.kpiLabel}>Izin / Sakit</Text>
                     <View style={styles.kpiValueRow}>
                       <Text style={styles.kpiNumber}>{izinSakitCount}</Text>
@@ -560,7 +560,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <View style={[styles.kpiCard, neoShadow.sm, isWide && styles.kpiCardWide]}>
               <View style={styles.kpiContent}>
                 <View style={styles.kpiTopRow}>
-                  <View>
+                  <View style={styles.kpiLeft}>
                     <Text style={styles.kpiLabel}>Belum Hadir / Alpa</Text>
                     <View style={styles.kpiValueRow}>
                       <Text style={styles.kpiNumber}>{unabsentCount}</Text>
@@ -578,13 +578,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </View>
             </View>
           </View>
-
-          {/* Department Breakdown Section */}
-          <AdminDepartmentReport
-            users={users}
-            offices={officeList}
-            companyId={currentAdmin.companyId || undefined}
-          />
 
           {/* Unabsent Employees Warning Banner */}
           <Card
@@ -616,7 +609,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {emp.fullName.substring(0, 2).toUpperCase()}
                       </Text>
                     </View>
-                    <View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.unabsentName}>{emp.fullName}</Text>
                       <Text style={styles.unabsentDept}>{emp.department || 'Staff'}</Text>
                     </View>
@@ -1262,7 +1255,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   kpiCard: {
-    width: '100%',
+    // HP: grid 2 kolom supaya kartu tidak memanjang ke bawah
+    flexGrow: 1,
+    flexBasis: '45%',
+    minWidth: 0,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1275,6 +1271,11 @@ const styles = StyleSheet.create({
   },
   kpiContent: {
     padding: 14,
+  },
+  kpiLeft: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6,
   },
   kpiTopRow: {
     flexDirection: 'row',
@@ -1372,6 +1373,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   unabsentLeft: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
