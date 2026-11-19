@@ -19,7 +19,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onPressProfile }) => {
     <View style={styles.container}>
       <View style={styles.left}>
         <Image
-          source={require('../../../assets/icon.png')}
+          source={require('../../../assets/logo-cakra.png')}
           style={styles.logo}
           resizeMode="contain"
         />

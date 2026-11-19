@@ -963,7 +963,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
         <View style={[styles.welcomeCard, neoShadow.sm]}>
           <View style={styles.welcomeTopRow}>
             <Image
-              source={require('../../../assets/icon.png')}
+              source={require('../../../assets/logo-cakra.png')}
               style={styles.welcomeLogo}
               resizeMode="contain"
             />

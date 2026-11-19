@@ -713,7 +713,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <View style={styles.sidebar}>
             <View style={styles.brandRow}>
               <Image
-                source={require('../../../assets/icon.png')}
+                source={require('../../../assets/logo-cakra.png')}
                 style={styles.brandIcon}
                 resizeMode="contain"
               />
