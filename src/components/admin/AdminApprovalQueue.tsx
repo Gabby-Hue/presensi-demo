@@ -52,6 +52,11 @@ export const AdminApprovalQueue: React.FC<AdminApprovalQueueProps> = ({ requests
                     <Feather name="zap" size={10} color="#B45309" style={{ marginRight: 2 }} />
                     <Text style={styles.otBadgeText}>LEMBUR</Text>
                   </View>
+                ) : item.reason && item.reason.includes('[TELAT') ? (
+                  <View style={styles.otBadge}>
+                    <Feather name="clock" size={10} color="#B45309" style={{ marginRight: 2 }} />
+                    <Text style={styles.otBadgeText}>TELAT</Text>
+                  </View>
                 ) : item.status === 'sakit' || (item.reason && item.reason.includes('[SAKIT]')) ? (
                   <View style={styles.sakitBadge}>
                     <Feather name="activity" size={10} color={colors.danger} style={{ marginRight: 2 }} />
@@ -63,7 +68,9 @@ export const AdminApprovalQueue: React.FC<AdminApprovalQueueProps> = ({ requests
                 {item.startDate && item.endDate && item.startDate !== item.endDate
                   ? `${item.startDate} - ${item.endDate}`
                   : item.date}
-                {item.reason ? ` • ${item.reason}` : ''}
+                {item.reason
+                  ? ` • ${item.reason.replace(/^\[TELAT\s+([^\]]+)\]\s*/i, 'Telat $1 — ')}`
+                  : ''}
               </Text>
               {item.documentUrl ? (
                 <Text style={styles.docHint}>

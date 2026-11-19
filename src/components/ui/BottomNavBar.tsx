@@ -241,9 +241,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 4,
     borderRadius: 16,
     gap: 2,
+    maxWidth: '100%',
   },
   tabContentActive: {
     backgroundColor: '#DCFCE7', // Soft mint-green pill ala Material 3

@@ -141,6 +141,14 @@ export const AttendanceFeed: React.FC<AttendanceFeedProps> = ({
                 ) : (
                   <Badge type="lembur" size="sm" />
                 )
+              ) : item.reason && item.reason.includes('[TELAT') ? (
+                item.approvalStatus === 'pending' ? (
+                  <Badge type="menunggu" size="sm" label="Telat (Menunggu)" />
+                ) : item.approvalStatus === 'rejected' ? (
+                  <Badge type="ditolak" size="sm" label="Telat (Ditolak)" />
+                ) : (
+                  <Badge type="telat" size="sm" />
+                )
               ) : item.type === 'izin_sakit' && item.approvalStatus === 'pending' ? (
                 <Badge type="menunggu" size="sm" />
               ) : item.type === 'izin_sakit' && item.approvalStatus === 'rejected' ? (
@@ -180,6 +188,8 @@ const styles = StyleSheet.create({
   },
   filterBar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8,
     marginBottom: 14,
   },
   filterChip: {

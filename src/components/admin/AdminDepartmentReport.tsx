@@ -147,7 +147,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
           .filter(
             (r) =>
               (r.type === 'izin_sakit' || r.sessionType === 'izin_sakit') &&
-              (!r.reason || !r.reason.includes('[LEMBUR]')) &&
+              (!r.reason || (!r.reason.includes('[LEMBUR]') && !r.reason.includes('[TELAT'))) &&
               r.approvalStatus === 'approved'
           )
           .map((r) => r.userId)
@@ -355,7 +355,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
                         color={isNoneDept ? colors.muted : colors.primaryDark}
                       />
                     </View>
-                    <View>
+                    <View style={{ flexShrink: 1 }}>
                       <Text style={styles.deptName}>{item.displayName}</Text>
                       <Text style={styles.deptSubInfo}>
                         {item.total} Karyawan • {item.presentCount} Hadir Hari Ini ({item.percentage}%)
@@ -430,10 +430,22 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
                     ) : (
                       item.staff.map((emp) => {
                         const todayLog = records.find(
-                          (r) => r.userId === emp.id && (r.date || '').slice(0, 10) === today && r.approvalStatus !== 'rejected'
+                          (r) =>
+                            r.userId === emp.id &&
+                            (r.date || '').slice(0, 10) === today &&
+                            r.sessionType !== 'izin_sakit' &&
+                            r.approvalStatus !== 'rejected'
                         );
-                        const isPresent = Boolean(todayLog && todayLog.sessionType !== 'izin_sakit');
-                        const isLeave = Boolean(todayLog && (todayLog.type === 'izin_sakit' || todayLog.sessionType === 'izin_sakit'));
+                        const todayLeaveLog = records.find(
+                          (r) =>
+                            r.userId === emp.id &&
+                            (r.date || '').slice(0, 10) === today &&
+                            (r.type === 'izin_sakit' || r.sessionType === 'izin_sakit') &&
+                            r.approvalStatus !== 'rejected'
+                        );
+                        const isPresent = Boolean(todayLog);
+                        const isTelatLeave = Boolean(todayLeaveLog?.reason && todayLeaveLog.reason.includes('[TELAT'));
+                        const isLeave = Boolean(todayLeaveLog) && !isTelatLeave;
 
                         const initials = getInitials(emp.fullName);
 
@@ -445,13 +457,17 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
                                 <Text style={styles.staffAvatarText}>{initials}</Text>
                               </View>
                               <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                   <Text style={styles.staffName}>{emp.fullName}</Text>
                                   {isPresent ? (
                                     <View style={styles.presentPill}>
                                       <Text style={styles.presentPillText}>
                                         Hadir {todayLog?.clockInTime ? `(${todayLog.clockInTime.slice(11, 16)} WIB)` : ''}
                                       </Text>
+                                    </View>
+                                  ) : isTelatLeave ? (
+                                    <View style={styles.telatPill}>
+                                      <Text style={styles.telatPillText}>Izin Telat</Text>
                                     </View>
                                   ) : isLeave ? (
                                     <View style={styles.leavePill}>
@@ -706,11 +722,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: 8,
   },
   deptLeftInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 180,
+    marginRight: 6,
   },
   deptIconBadge: {
     width: 36,
@@ -736,6 +756,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   deptExportBtn: {
     flexDirection: 'row',
@@ -795,8 +816,10 @@ const styles = StyleSheet.create({
   },
   staffRowCard: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
+    rowGap: 8,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.border,
@@ -807,7 +830,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 10,
+    minWidth: 180,
+    maxWidth: '100%',
   },
   staffAvatar: {
     width: 32,
@@ -850,6 +874,19 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: radius.sm,
   },
+  telatPill: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+  },
+  telatPillText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#B45309',
+  },
   leavePillText: {
     fontSize: 9,
     fontWeight: '700',
@@ -870,6 +907,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   actionIndividualBtn: {
     flexDirection: 'row',

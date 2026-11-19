@@ -33,7 +33,7 @@ export const Card: React.FC<CardProps> = ({ children, title, subtitle, action, i
             )}
             {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
           </View>
-          {action && <View>{action}</View>}
+          {action && <View style={styles.actionWrap}>{action}</View>}
         </View>
       )}
       <View>{children}</View>
@@ -52,16 +52,26 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
+    columnGap: spacing.sm,
+    rowGap: spacing.sm,
     marginBottom: spacing.sm,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderMuted,
   },
   titleWrap: {
-    flex: 1,
-    marginRight: spacing.sm,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 200,
+    minWidth: 0,
+  },
+  actionWrap: {
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
   },
   titleRow: {
     flexDirection: 'row',

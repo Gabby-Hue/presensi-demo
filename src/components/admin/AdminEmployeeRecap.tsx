@@ -303,7 +303,9 @@ export const AdminEmployeeRecap: React.FC<AdminEmployeeRecapProps> = ({
                             {r.sessionType === 'izin_sakit'
                               ? r.reason && r.reason.includes('[LEMBUR]')
                                 ? 'Lembur'
-                                : 'Izin/Sakit'
+                                : r.reason && r.reason.includes('[TELAT')
+                                  ? 'Izin Telat'
+                                  : 'Izin/Sakit'
                               : isWeekendDateString(r.date) || isNationalHoliday(r.date)
                                 ? 'Lembur'
                                 : r.sessionType === 'pulang'

@@ -33,7 +33,8 @@ export const buildAttendanceMap = (
     // 1. Tangani Izin / Sakit multi-hari (rentang tanggal startDate s.d endDate)
     if (record.type === 'izin_sakit' || record.sessionType === 'izin_sakit') {
       const isLembur = record.reason && record.reason.includes('[LEMBUR]');
-      if (!isLembur) {
+      const isTelat = record.reason && record.reason.includes('[TELAT');
+      if (!isLembur && !isTelat) {
         const sDate = (record.startDate || record.date || '').slice(0, 10);
         const eDate = (record.endDate || record.date || '').slice(0, 10);
         const isHalf = !!record.reason && /setengah\s*hari/i.test(record.reason);

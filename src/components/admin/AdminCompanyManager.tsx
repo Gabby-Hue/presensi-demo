@@ -230,7 +230,7 @@ export const AdminCompanyManager: React.FC<AdminCompanyManagerProps> = ({
         {okMsg && <Text style={styles.ok}>{okMsg}</Text>}
         <View style={styles.inlineForm}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1, minWidth: 160 }]}
             placeholder="Contoh: PT Perusahaan Contoh"
             placeholderTextColor={colors.faint}
             value={name}
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: { fontSize: fontSize.xs, fontWeight: '800', color: colors.primaryDark },
-  inlineForm: { flexDirection: 'row', gap: 8, marginTop: 14, alignItems: 'center' },
+  inlineForm: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, rowGap: 8, marginTop: 14, alignItems: 'center' },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',

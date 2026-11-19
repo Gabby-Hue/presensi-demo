@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, fontSize, radius } from '../../theme';
 
 interface BadgeProps {
-  type: 'luring' | 'daring' | 'izin_sakit' | 'hadir' | 'izin' | 'sakit' | 'belum_absen' | 'menunggu' | 'ditolak' | 'lembur';
+  type: 'luring' | 'daring' | 'izin_sakit' | 'hadir' | 'izin' | 'sakit' | 'belum_absen' | 'menunggu' | 'ditolak' | 'lembur' | 'telat';
   label?: string;
   size?: 'sm' | 'md';
 }
@@ -21,6 +21,8 @@ export const Badge: React.FC<BadgeProps> = ({ type, label, size = 'md' }) => {
         return { bg: colors.surfaceSoft, text: colors.ink, border: colors.border, label: 'Di Luar' };
       case 'lembur':
         return { bg: '#FEF3C7', text: '#B45309', border: '#FDE68A', label: 'Lembur' };
+      case 'telat':
+        return { bg: '#FEF3C7', text: '#B45309', border: '#FDE68A', label: 'Izin Telat' };
       case 'izin_sakit':
       case 'izin':
       case 'sakit':

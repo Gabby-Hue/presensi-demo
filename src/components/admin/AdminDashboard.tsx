@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -56,7 +56,7 @@ const TABS: Array<{
   { key: 'monitoring', label: 'Monitoring', icon: 'pie-chart' },
   { key: 'report', label: 'Rekap Laporan', icon: 'bar-chart-2', branchOnly: true },
   { key: 'geofence', label: 'Titik & Radius', icon: 'map', branchOnly: true },
-  { key: 'departments', label: 'Departemen', icon: 'grid' },
+  { key: 'departments', label: 'Departemen', icon: 'grid', branchOnly: true },
   { key: 'employees', label: 'Kelola Karyawan', icon: 'user-plus', branchOnly: true },
   { key: 'approval', label: 'Persetujuan', icon: 'inbox', branchOnly: true },
 ];
@@ -88,6 +88,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
+  // Kontrol geser tab mobile (di web drag tidak jalan, jadi diberi tombol panah)
+  const tabScrollRef = useRef<ScrollView>(null);
+  const tabScrollXRef = useRef(0);
+  const tabViewportRef = useRef(0);
+  const tabContentRef = useRef(0);
+  const [tabNav, setTabNav] = useState({ canLeft: false, canRight: false });
+
+  const syncTabNav = () => {
+    const canLeft = tabScrollXRef.current > 4;
+    const canRight = tabScrollXRef.current + tabViewportRef.current < tabContentRef.current - 4;
+    setTabNav((prev) =>
+      prev.canLeft === canLeft && prev.canRight === canRight ? prev : { canLeft, canRight }
+    );
+  };
+
+  const scrollTabs = (dir: 1 | -1) => {
+    const step = Math.max(140, tabViewportRef.current * 0.6);
+    const next = Math.max(0, tabScrollXRef.current + dir * step);
+    tabScrollRef.current?.scrollTo({ x: next, animated: true });
+    tabScrollXRef.current = next;
+    syncTabNav();
+  };
+
   // Load companies & audit logs for superadmin overview
   useEffect(() => {
     if (isSuper) {
@@ -112,10 +135,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
   const presentCount = presentUserIds.size;
 
-  // 2. Karyawan Izin / Sakit (di hari ini) - dihitung per KARYAWAN UNIK (tidak termasuk pengajuan lembur)
+  // 2. Karyawan Izin / Sakit (di hari ini) - dihitung per KARYAWAN UNIK (tidak termasuk pengajuan lembur & izin telat)
   const leaveUserIds = new Set(
     validTodayAttendances
-      .filter((a) => (a.type === 'izin_sakit' || a.sessionType === 'izin_sakit') && (!a.reason || !a.reason.includes('[LEMBUR]')) && a.approvalStatus !== 'rejected')
+      .filter((a) => (a.type === 'izin_sakit' || a.sessionType === 'izin_sakit') && (!a.reason || (!a.reason.includes('[LEMBUR]') && !a.reason.includes('[TELAT'))) && a.approvalStatus !== 'rejected')
       .map((a) => a.userId)
   );
   const izinSakitCount = leaveUserIds.size;
@@ -334,7 +357,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ).size;
                 const bIzin = new Set(
                   bAtt
-                    .filter((a) => (a.type === 'izin_sakit' || a.sessionType === 'izin_sakit') && (!a.reason || !a.reason.includes('[LEMBUR]')) && a.approvalStatus !== 'rejected')
+                    .filter((a) => (a.type === 'izin_sakit' || a.sessionType === 'izin_sakit') && (!a.reason || (!a.reason.includes('[LEMBUR]') && !a.reason.includes('[TELAT'))) && a.approvalStatus !== 'rejected')
                     .map((a) => a.userId)
                 ).size;
                 const bTotal = bStaff.length;
@@ -784,9 +807,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <>
           <View style={styles.tabHeaderWrapper}>
             <ScrollView
+              ref={tabScrollRef}
               horizontal
+              style={styles.tabScroll}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.tabHeaderContent}
+              onScroll={(e) => {
+                tabScrollXRef.current = e.nativeEvent.contentOffset.x;
+                syncTabNav();
+              }}
+              scrollEventThrottle={16}
+              onContentSizeChange={(w) => {
+                tabContentRef.current = w;
+                syncTabNav();
+              }}
+              onLayout={(e) => {
+                tabViewportRef.current = e.nativeEvent.layout.width;
+                syncTabNav();
+              }}
             >
               {visibleTabs.map((tab) => {
                 const active = activeTab === tab.key;
@@ -820,9 +858,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 );
               })}
             </ScrollView>
+
+            {tabNav.canLeft && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => scrollTabs(-1)}
+                style={[styles.tabScrollArrow, styles.tabScrollArrowLeft]}
+                accessibilityLabel="Geser tab ke kiri"
+              >
+                <Feather name="chevron-left" size={18} color={colors.primaryDark} />
+              </TouchableOpacity>
+            )}
+            {tabNav.canRight && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => scrollTabs(1)}
+                style={[styles.tabScrollArrow, styles.tabScrollArrowRight]}
+                accessibilityLabel="Geser tab ke kanan"
+              >
+                <Feather name="chevron-right" size={18} color={colors.primaryDark} />
+              </TouchableOpacity>
+            )}
           </View>
 
           <ScrollView
+            style={styles.mobileContent}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scroll}
           >
@@ -873,18 +933,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    minWidth: 0,
+    overflow: 'hidden',
     backgroundColor: colors.background,
   },
   /* Tab HP: horizontal pill bar proporsional */
   tabHeaderWrapper: {
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
+    overflow: 'hidden',
+    position: 'relative',
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  tabScrollArrow: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    zIndex: 2,
+  },
+  tabScrollArrowLeft: {
+    left: 0,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+  },
+  tabScrollArrowRight: {
+    right: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  /* ScrollView tab dibuat selebar layar agar bisa digeser ke samping */
+  tabScroll: {
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  mobileContent: {
+    flex: 1,
+    width: '100%',
+    minWidth: 0,
   },
   tabHeaderContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
+    paddingRight: 20,
     paddingVertical: 10,
     gap: 8,
   },
@@ -1045,6 +1145,8 @@ const styles = StyleSheet.create({
   },
   mainCol: {
     flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
   },
   webTopbar: {
     flexDirection: 'row',

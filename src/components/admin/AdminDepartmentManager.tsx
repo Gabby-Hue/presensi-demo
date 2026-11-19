@@ -776,9 +776,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
+    rowGap: 8,
   },
   addInput: {
     flex: 1,
+    minWidth: 160,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,

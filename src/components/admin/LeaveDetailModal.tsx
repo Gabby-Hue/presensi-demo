@@ -34,6 +34,8 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
   const isApproved = record.approvalStatus === 'approved';
   const isRejected = record.approvalStatus === 'rejected';
   const isLeave = record.type === 'izin_sakit' || record.sessionType === 'izin_sakit';
+  const isTelat = !!(record.reason && record.reason.includes('[TELAT'));
+  const telatTime = record.reason?.match(/\[TELAT\s+([^\]]+)\]/i)?.[1];
   const showPendingActions = isPending && (onApprove || onReject);
   const showApprovedActions = isApproved && isLeave && (onCancelLeave || onReject);
   const showRejectedActions = isRejected && isLeave && onApprove;
@@ -55,6 +57,8 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
           </View>
           {record.reason && record.reason.includes('[LEMBUR]') ? (
             <Badge type="lembur" label="Lembur" />
+          ) : isTelat ? (
+            <Badge type="telat" label="Izin Telat" />
           ) : record.status === 'sakit' || (record.reason && record.reason.includes('[SAKIT]')) ? (
             <Badge type="sakit" label="Sakit" />
           ) : (
@@ -66,6 +70,15 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
           <View style={styles.overtimeNoticeCard}>
             <Feather name="zap" size={16} color="#B45309" style={{ marginRight: 8 }} />
             <Text style={styles.overtimeNoticeText}>Pengajuan Penugasan Lembur Karyawan</Text>
+          </View>
+        ) : null}
+
+        {isTelat ? (
+          <View style={styles.overtimeNoticeCard}>
+            <Feather name="clock" size={16} color="#B45309" style={{ marginRight: 8 }} />
+            <Text style={styles.overtimeNoticeText}>
+              Pemberitahuan Terlambat{telatTime ? ` — perkiraan datang ${telatTime} WIB` : ''}
+            </Text>
           </View>
         ) : null}
 
@@ -107,7 +120,9 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
         <View style={styles.section}>
           <View style={styles.reasonBox}>
             <Text style={styles.reasonText}>
-              {record.reason || '-'}
+              {record.reason
+                ? record.reason.replace(/^\[TELAT\s+[^\]]+\]\s*/i, '')
+                : '-'}
             </Text>
           </View>
         </View>

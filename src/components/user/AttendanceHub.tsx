@@ -213,7 +213,7 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
 
   const [showProfileDrawer, setShowProfileDrawer] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const [leaveCategoryFilter, setLeaveCategoryFilter] = useState<'izin' | 'sakit' | 'lembur'>('izin');
+  const [leaveCategoryFilter, setLeaveCategoryFilter] = useState<'izin' | 'sakit' | 'lembur' | 'telat'>('izin');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AttendanceRecord | null>(null);
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
@@ -350,10 +350,11 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     (r) => (r.date || '').slice(0, 10) === todayStr && r.sessionType === 'pulang'
   );
 
-  // Izin / sakit yang mencakup hari ini (TIDAK termasuk pengajuan lembur)
+  // Izin / sakit yang mencakup hari ini (TIDAK termasuk pengajuan lembur & izin telat)
   const todayLeave = userHistory.find((r) => {
     if (r.type !== 'izin_sakit' && r.sessionType !== 'izin_sakit') return false;
     if (r.reason && r.reason.includes('[LEMBUR]')) return false;
+    if (r.reason && r.reason.includes('[TELAT')) return false;
     const start = (r.startDate || r.date || '').slice(0, 10);
     const end = (r.endDate || r.date || '').slice(0, 10);
     return !!(start && end && todayStr >= start && todayStr <= end);
@@ -432,6 +433,7 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const leaveCount = monthAllRecords.filter((r) => {
     if (r.type !== 'izin_sakit' && r.sessionType !== 'izin_sakit') return false;
     if (r.reason && r.reason.includes('[LEMBUR]')) return false;
+    if (r.reason && r.reason.includes('[TELAT')) return false;
     return r.approvalStatus !== 'rejected';
   }).length;
 
@@ -697,15 +699,18 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
         documentUrl: publicDocUrl,
       });
 
+      const isTelatRequest = data.reason.includes('[TELAT');
       succeed();
       openAppDialog({
-        title: 'Pengajuan Terkirim',
-        message: 'Pengajuan izin/sakit berhasil dikirim dan menunggu persetujuan admin.',
+        title: isTelatRequest ? 'Izin Telat Terkirim' : 'Pengajuan Terkirim',
+        message: isTelatRequest
+          ? 'Pemberitahuan terlambat berhasil dikirim dan menunggu persetujuan admin. Anda tetap dapat melakukan presensi masuk.'
+          : 'Pengajuan izin/sakit berhasil dikirim dan menunggu persetujuan admin.',
         icon: 'check-circle',
         variant: 'primary',
         confirmText: 'Selesai',
       });
-      setActiveTab('presensi');
+      if (!isTelatRequest) setActiveTab('presensi');
     } catch (e: any) {
       fail();
       openAppDialog({
@@ -825,17 +830,24 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
 
   const renderLogRow = (item: AttendanceRecord) => {
     const isLemburReason = !!item.reason && item.reason.includes('[LEMBUR]');
-    const isLeave = (item.type === 'izin_sakit' || item.sessionType === 'izin_sakit') && !isLemburReason;
+    const isTelatReason = !isLemburReason && !!item.reason && item.reason.includes('[TELAT');
+    const isLeave =
+      (item.type === 'izin_sakit' || item.sessionType === 'izin_sakit') &&
+      !isLemburReason &&
+      !isTelatReason;
     const isMasuk = item.sessionType === 'masuk';
     // Absen di Sabtu/Minggu atau Hari Libur Nasional = lembur (override tanggal merah)
     const isLemburWeekend =
       !isLeave &&
       !isLemburReason &&
+      !isTelatReason &&
       (isWeekendDateString(item.date) || isNationalHoliday(item.date)) &&
       (item.sessionType === 'masuk' || item.sessionType === 'pulang');
 
     const logTitleText = isLemburReason || isLemburWeekend
       ? (isLemburReason ? 'Pengajuan Lembur' : 'Lembur')
+      : isTelatReason
+      ? 'Izin Telat'
       : isLeave
       ? (item.status === 'sakit' ? 'Sakit' : 'Izin')
       : isMasuk
@@ -857,9 +869,17 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
         ) : (
           <View style={styles.logFallback}>
             <Feather
-              name={isLemburReason ? 'zap' : isLeave ? (item.status === 'sakit' ? 'activity' : 'calendar') : 'camera'}
+              name={
+                isLemburReason
+                  ? 'zap'
+                  : isTelatReason
+                  ? 'clock'
+                  : isLeave
+                  ? (item.status === 'sakit' ? 'activity' : 'calendar')
+                  : 'camera'
+              }
               size={20}
-              color={isLemburReason ? '#D97706' : colors.faint}
+              color={isLemburReason ? '#D97706' : isTelatReason ? '#B45309' : colors.faint}
             />
           </View>
         )}
@@ -870,10 +890,10 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             {formatLogDate(item.clockInTime || item.createdAt || item.date)}
           </Text>
           <Text style={styles.logSub}>
-            {isLeave || isLemburReason
+            {isLeave || isLemburReason || isTelatReason
               ? `Pengajuan: ${item.startDate || item.date} s.d. ${item.endDate || item.date}`
               : `${formatLogTime(item.clockInTime)} WIB${item.distanceMeters ? ` • ${item.distanceMeters} m` : ''}`}
-            {item.officeName && !isLeave && !isLemburReason ? (
+            {item.officeName && !isLeave && !isLemburReason && !isTelatReason ? (
               <>
                 {' • '}
                 {item.officeColor ? <Text style={{ color: item.officeColor }}>● </Text> : null}
@@ -889,6 +909,14 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             <Badge type="ditolak" size="sm" label="Lembur (Ditolak)" />
           ) : (
             <Badge type="lembur" size="sm" />
+          )
+        ) : isTelatReason ? (
+          item.approvalStatus === 'pending' ? (
+            <Badge type="menunggu" size="sm" label="Telat (Menunggu)" />
+          ) : item.approvalStatus === 'rejected' ? (
+            <Badge type="ditolak" size="sm" label="Telat (Ditolak)" />
+          ) : (
+            <Badge type="telat" size="sm" />
           )
         ) : item.type === 'izin_sakit' && item.approvalStatus === 'pending' ? (
           <Badge type="menunggu" size="sm" />
@@ -1321,6 +1349,30 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
           </TouchableOpacity>
         </View>
 
+        {!todayMasuk && !isLemburDay && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => {
+              select();
+              setLeaveCategoryFilter('telat');
+              setLeaveViewMode('create');
+              setActiveTab('izin');
+            }}
+            style={[styles.lateQuickBtn, neoShadow.sm]}
+          >
+            <View style={styles.lateQuickIcon}>
+              <Feather name="clock" size={16} color="#B45309" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lateQuickTitle}>Terlambat datang?</Text>
+              <Text style={styles.lateQuickSub}>
+                Beri tahu admin (macet, tambal ban, keperluan mendadak)
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color="#B45309" />
+          </TouchableOpacity>
+        )}
+
         {/* 4. SECTION: Kehadiran Minggu Ini */}
         <View style={styles.historySectionRow}>
           <View style={{ flex: 1 }}>
@@ -1453,21 +1505,24 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
 
     const filteredUserLeaves = userLeaves.filter((item) => {
       const isLembur = Boolean(item.reason && item.reason.includes('[LEMBUR]'));
-      const isSakit = !isLembur && (item.status === 'sakit' || Boolean(item.reason && item.reason.includes('[SAKIT]')));
+      const isTelat = !isLembur && Boolean(item.reason && item.reason.includes('[TELAT'));
+      const isSakit = !isLembur && !isTelat && (item.status === 'sakit' || Boolean(item.reason && item.reason.includes('[SAKIT]')));
       if (leaveCategoryFilter === 'lembur') return isLembur;
+      if (leaveCategoryFilter === 'telat') return isTelat;
       if (leaveCategoryFilter === 'sakit') return isSakit;
-      if (leaveCategoryFilter === 'izin') return !isLembur && !isSakit;
+      if (leaveCategoryFilter === 'izin') return !isLembur && !isSakit && !isTelat;
       return true;
     });
 
     const filterOptions: Array<{
-      key: 'izin' | 'sakit' | 'lembur';
+      key: 'izin' | 'sakit' | 'lembur' | 'telat';
       label: string;
       icon: keyof typeof Feather.glyphMap;
       color: string;
     }> = [
       { key: 'izin', label: 'Izin (Penuh / 1/2 Hari)', icon: 'calendar', color: colors.primary },
       { key: 'sakit', label: 'Sakit', icon: 'activity', color: colors.izin },
+      { key: 'telat', label: 'Izin Telat', icon: 'clock', color: '#B45309' },
       { key: 'lembur', label: 'Lembur', icon: 'zap', color: '#D97706' },
     ];
     const currentFilterOpt = filterOptions.find((o) => o.key === leaveCategoryFilter) || filterOptions[0];
@@ -1481,11 +1536,11 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
         <View style={styles.tabHeaderRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>Pengajuan Keperluan</Text>
-            <Text style={styles.date}>Pantau status izin, sakit, dan penugasan lembur dari admin cabang</Text>
+            <Text style={styles.date}>Pantau status izin, sakit, izin telat, dan penugasan lembur dari admin cabang</Text>
           </View>
         </View>
 
-        {/* Dropdown Kategori Pengajuan (3 Opsi: Izin, Sakit, Lembur — Tanpa Opsi Semua) */}
+        {/* Dropdown Kategori Pengajuan (Izin, Sakit, Izin Telat, Lembur — Tanpa Opsi Semua) */}
         <View style={styles.dropdownSectionWrap}>
           <TouchableOpacity
             activeOpacity={0.85}
@@ -1559,6 +1614,8 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             <Text style={styles.emptyLeaveSub}>
               {leaveCategoryFilter === 'lembur'
                 ? 'Belum ada catatan tugas lembur. Tekan tombol di bawah untuk membuat penugasan lembur baru.'
+                : leaveCategoryFilter === 'telat'
+                ? 'Belum ada pemberitahuan terlambat. Tekan tombol di bawah bila Anda terlambat datang karena keperluan mendadak.'
                 : leaveCategoryFilter === 'sakit'
                 ? 'Belum ada surat izin sakit yang diajukan ke admin cabang.'
                 : 'Belum ada permohonan izin cuti atau keperluan mendesak yang diajukan.'}
@@ -1579,7 +1636,8 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
           <View style={{ gap: 12 }}>
             {filteredUserLeaves.map((item) => {
               const isLembur = Boolean(item.reason && item.reason.includes('[LEMBUR]'));
-              const isSakit = !isLembur && (item.status === 'sakit' || Boolean(item.reason && item.reason.includes('[SAKIT]')));
+              const isTelat = !isLembur && Boolean(item.reason && item.reason.includes('[TELAT'));
+              const isSakit = !isLembur && !isTelat && (item.status === 'sakit' || Boolean(item.reason && item.reason.includes('[SAKIT]')));
               const isApproved = item.approvalStatus === 'approved';
               const isRejected = item.approvalStatus === 'rejected';
               const isPending = item.approvalStatus === 'pending';
@@ -1611,21 +1669,25 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
                         {
                           backgroundColor: isLembur
                             ? '#FEF3C7'
+                            : isTelat
+                            ? '#FEF3C7'
                             : isSakit
                             ? colors.izinSoft
                             : colors.primarySoft,
                         }
                       ]}>
                         <Feather
-                          name={isLembur ? 'zap' : isSakit ? 'activity' : 'calendar'}
+                          name={isLembur ? 'zap' : isTelat ? 'clock' : isSakit ? 'activity' : 'calendar'}
                           size={18}
-                          color={isLembur ? '#D97706' : isSakit ? colors.izin : colors.primary}
+                          color={isLembur ? '#D97706' : isTelat ? '#B45309' : isSakit ? colors.izin : colors.primary}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.leaveHistoryTitle}>
                           {isLembur
                             ? 'Penugasan Lembur'
+                            : isTelat
+                            ? 'Izin Terlambat'
                             : isSakit
                             ? 'Surat Sakit'
                             : item.reason && item.reason.includes('SETENGAH HARI')
@@ -1694,7 +1756,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
                       Diajukan: {formatLogDate(item.createdAt || item.clockInTime)} • {formatLogTime(item.createdAt || item.clockInTime)} WIB
                     </Text>
 
-                    {(item.endDate || item.date) >= todayStr && item.approvalStatus !== 'rejected' && (
+                    {(item.endDate || item.date) >= todayStr && item.approvalStatus !== 'rejected' && !isTelat && (
                       <TouchableOpacity
                         style={styles.cancelLeaveCardBtn}
                         onPress={() => {
@@ -1892,7 +1954,15 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
           <ScrollView showsVerticalScrollIndicator={false}>
           <View>
             <View style={styles.modalHeaderRow}>
-              {selectedLog.type === 'izin_sakit' && selectedLog.approvalStatus === 'pending' ? (
+              {selectedLog.reason && selectedLog.reason.includes('[TELAT') ? (
+                selectedLog.approvalStatus === 'pending' ? (
+                  <Badge type="menunggu" label="Telat (Menunggu)" />
+                ) : selectedLog.approvalStatus === 'rejected' ? (
+                  <Badge type="ditolak" label="Telat (Ditolak)" />
+                ) : (
+                  <Badge type="telat" />
+                )
+              ) : selectedLog.type === 'izin_sakit' && selectedLog.approvalStatus === 'pending' ? (
                 <Badge type="menunggu" />
               ) : selectedLog.type === 'izin_sakit' && selectedLog.approvalStatus === 'rejected' ? (
                 <Badge type="ditolak" />
@@ -1903,7 +1973,9 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             </View>
             <View style={styles.infoBox}>
               <Text style={styles.infoText}>
-                {selectedLog.sessionType === 'izin_sakit'
+                {selectedLog.reason && selectedLog.reason.includes('[TELAT')
+                  ? 'Izin Telat'
+                  : selectedLog.sessionType === 'izin_sakit'
                   ? 'Izin/Sakit'
                   : isWeekendDateString(selectedLog.date)
                     ? `Lembur (${selectedLog.sessionType === 'pulang' ? 'pulang' : 'masuk'})`
@@ -2748,6 +2820,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 16,
+  },
+  lateQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  lateQuickIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lateQuickTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  lateQuickSub: {
+    fontSize: fontSize.xs,
+    color: '#B45309',
+    marginTop: 1,
+    fontWeight: '600',
   },
   colourCard: {
     flex: 1,

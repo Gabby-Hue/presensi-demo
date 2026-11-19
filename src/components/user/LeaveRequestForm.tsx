@@ -46,8 +46,15 @@ const formatDisplayDate = (key: string): string => {
   return `${p.d} ${CAL_MONTH_SHORT[p.m]} ${p.y}`;
 };
 
+const TELAT_REASON_OPTIONS = [
+  'Macet',
+  'Ban bocor / tambal ban',
+  'Kendaraan mogok',
+  'Keperluan mendadak',
+];
+
 interface LeaveRequestFormProps {
-  initialCategory?: 'izin' | 'sakit' | 'lembur';
+  initialCategory?: 'izin' | 'sakit' | 'lembur' | 'telat';
   onSubmit: (data: {
     startDate: string;
     endDate: string;
@@ -65,14 +72,17 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   loading = false,
 }) => {
   const today = todayWIB();
-  const [leaveCategory, setLeaveCategory] = useState<'izin' | 'sakit' | 'lembur'>(initialCategory);
+  const [leaveCategory, setLeaveCategory] = useState<'izin' | 'sakit' | 'lembur' | 'telat'>(initialCategory);
   const [durationMode, setDurationMode] = useState<'full' | 'half'>('full');
   const [halfDaySession, setHalfDaySession] = useState<'pagi' | 'siang'>('pagi');
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [overtimeStart, setOvertimeStart] = useState('17:00');
   const [overtimeEnd, setOvertimeEnd] = useState('20:00');
+  const [arrivalTime, setArrivalTime] = useState('09:00');
   const [reason, setReason] = useState('');
+  const [telatReasonOpen, setTelatReasonOpen] = useState(false);
+  const [telatCustomReason, setTelatCustomReason] = useState(false);
   const [attachedUri, setAttachedUri] = useState<string | undefined>(undefined);
   const [attachedName, setAttachedName] = useState<string>('');
   const [pickerFor, setPickerFor] = useState<'start' | 'end' | null>(null);
@@ -107,8 +117,19 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     setPickerFor(null);
   };
 
-  const handlePickDocument = async () => {
-    try {
+  const handlePickTelatReason = (value: string) => {
+    select();
+    if (value === '__custom__') {
+      setTelatCustomReason(true);
+      if (!telatCustomReason) setReason('');
+    } else {
+      setTelatCustomReason(false);
+      setReason(value);
+    }
+    setTelatReasonOpen(false);
+  };
+
+  const handlePickDocument = async () => {    try {
       const res = await DocumentPicker.getDocumentAsync({
         type: ['image/*', 'application/pdf'],
         copyToCacheDirectory: true,
@@ -135,11 +156,35 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   const handleSubmit = () => {
     if (!reason.trim()) {
       Alert.alert(
-        leaveCategory === 'lembur' ? 'Uraian Lembur Diperlukan' : 'Alasan Diperlukan',
+        leaveCategory === 'lembur'
+          ? 'Uraian Lembur Diperlukan'
+          : leaveCategory === 'telat'
+          ? 'Alasan Terlambat Diperlukan'
+          : 'Alasan Diperlukan',
         leaveCategory === 'lembur'
           ? 'Mohon isi target tugas atau alasan lembur secara jelas.'
+          : leaveCategory === 'telat'
+          ? 'Mohon isi penyebab keterlambatan secara jelas (mis. macet, ban bocor, keperluan mendadak).'
           : 'Mohon isi keterangan atau alasan pengajuan secara jelas.'
       );
+      return;
+    }
+
+    if (leaveCategory === 'telat') {
+      const timeMatch = /^([01]?\d|2[0-3])[:.]([0-5]\d)$/.exec(arrivalTime.trim());
+      if (!timeMatch) {
+        Alert.alert('Jam Tidak Valid', 'Isi perkiraan jam datang dengan format HH:MM, contoh 09:30.');
+        return;
+      }
+      const normalizedTime = `${String(Number(timeMatch[1])).padStart(2, '0')}:${timeMatch[2]}`;
+      const fullReason = `[TELAT ${normalizedTime}] ${reason.trim()}`;
+
+      onSubmit({
+        startDate,
+        endDate: startDate,
+        reason: fullReason,
+        documentUrl: attachedUri,
+      });
       return;
     }
 
@@ -203,6 +248,8 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             <Text style={styles.topBarTitle}>
               {leaveCategory === 'lembur'
                 ? 'Formulir Lembur'
+                : leaveCategory === 'telat'
+                ? 'Izin Terlambat'
                 : leaveCategory === 'sakit'
                 ? 'Surat Izin Sakit'
                 : 'Pengajuan Izin / Cuti'}
@@ -210,6 +257,8 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
             <Text style={styles.topBarSubtitle}>
               {leaveCategory === 'lembur'
                 ? 'Pengajuan Jam Kerja Lembur'
+                : leaveCategory === 'telat'
+                ? 'Pemberitahuan Terlambat Datang'
                 : leaveCategory === 'sakit'
                 ? 'Formulir Izin Sakit Karyawan'
                 : 'Formulir Permohonan Izin Karyawan'}
@@ -332,6 +381,204 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
                   placeholderTextColor={colors.faint}
                   textAlignVertical="top"
                 />
+              </View>
+            </>
+          ) : leaveCategory === 'telat' ? (
+            <>
+              {/* Card 1: Tanggal & Perkiraan Jam Datang */}
+              <View style={styles.sectionCard}>
+                <Text style={styles.label}>Tanggal & Perkiraan Jam Datang</Text>
+
+                <Text style={styles.subLabel}>Tanggal Terlambat</Text>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => openPicker('start')}
+                  style={[styles.inputWrap, { marginBottom: 14 }]}
+                >
+                  <Feather name="calendar" size={16} color={colors.primary} style={styles.inputIcon} />
+                  <Text style={styles.dateValue}>{formatDisplayDate(startDate)}</Text>
+                  <Feather name="chevron-down" size={16} color={colors.faint} />
+                </TouchableOpacity>
+
+                <Text style={styles.subLabel}>Perkiraan Jam Sampai Kantor</Text>
+                <TextInput
+                  style={[styles.otTimeInput, { maxWidth: 140 }]}
+                  value={arrivalTime}
+                  onChangeText={setArrivalTime}
+                  placeholder="09:00"
+                  placeholderTextColor={colors.faint}
+                  keyboardType="numbers-and-punctuation"
+                />
+
+                <View style={styles.otQuickSlotsRow}>
+                  {['08:30', '09:00', '09:30', '10:00', '11:00'].map((t) => (
+                    <TouchableOpacity
+                      key={t}
+                      onPress={() => {
+                        select();
+                        setArrivalTime(t);
+                      }}
+                      style={[styles.otQuickSlotBtn, arrivalTime === t && styles.otQuickSlotBtnActive]}
+                    >
+                      <Text
+                        style={[styles.otQuickSlotText, arrivalTime === t && styles.otQuickSlotTextActive]}
+                      >
+                        {t}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Card 2: Alasan Terlambat */}
+              <View style={styles.sectionCard}>
+                <Text style={styles.label}>
+                  Alasan Terlambat <Text style={styles.requiredStar}>*</Text>
+                </Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    select();
+                    setTelatReasonOpen((prev) => !prev);
+                  }}
+                  style={[styles.telatSelectTrigger, telatReasonOpen && styles.telatSelectTriggerOpen]}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: telatReasonOpen }}
+                >
+                  <Feather
+                    name="alert-circle"
+                    size={16}
+                    color={reason || telatCustomReason ? colors.primary : colors.faint}
+                  />
+                  <Text
+                    style={[
+                      styles.telatSelectText,
+                      !reason && !telatCustomReason && styles.telatSelectPlaceholder,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {telatCustomReason
+                      ? 'Tulis sendiri...'
+                      : reason || 'Pilih alasan keterlambatan'}
+                  </Text>
+                  <Feather
+                    name={telatReasonOpen ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={telatReasonOpen ? colors.primary : colors.muted}
+                  />
+                </TouchableOpacity>
+
+                {telatReasonOpen && (
+                  <View style={styles.telatDropdown}>
+                    {TELAT_REASON_OPTIONS.map((option) => {
+                      const selected = !telatCustomReason && reason === option;
+                      return (
+                        <TouchableOpacity
+                          key={option}
+                          activeOpacity={0.75}
+                          onPress={() => handlePickTelatReason(option)}
+                          style={[styles.telatOption, selected && styles.telatOptionActive]}
+                        >
+                          <Text
+                            style={[
+                              styles.telatOptionText,
+                              selected && styles.telatOptionTextActive,
+                            ]}
+                          >
+                            {option}
+                          </Text>
+                          {selected && <Feather name="check" size={16} color={colors.primary} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+
+                    <TouchableOpacity
+                      activeOpacity={0.75}
+                      onPress={() => handlePickTelatReason('__custom__')}
+                      style={[
+                        styles.telatOption,
+                        styles.telatOptionCustom,
+                        telatCustomReason && styles.telatOptionActive,
+                      ]}
+                    >
+                      <Feather name="edit-3" size={15} color={colors.primary} />
+                      <Text
+                        style={[
+                          styles.telatOptionText,
+                          styles.telatOptionCustomText,
+                          telatCustomReason && styles.telatOptionTextActive,
+                        ]}
+                      >
+                        Tulis sendiri...
+                      </Text>
+                      {telatCustomReason && (
+                        <Feather name="check" size={16} color={colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {telatCustomReason && (
+                  <TextInput
+                    style={[styles.textInput, styles.textArea, { marginTop: 10 }]}
+                    value={reason}
+                    onChangeText={setReason}
+                    multiline
+                    numberOfLines={3}
+                    placeholder="Contoh: Ban motor bocor di jalan, mampir tambal ban dulu..."
+                    placeholderTextColor={colors.faint}
+                    textAlignVertical="top"
+                  />
+                )}
+              </View>
+
+              {/* Card 3: Bukti Pendukung (Opsional) */}
+              <View style={styles.sectionCard}>
+                <Text style={styles.label}>
+                  Bukti Pendukung <Text style={styles.optionalText}>(Opsional)</Text>
+                </Text>
+                {attachedUri ? (
+                  <View style={styles.attachmentBox}>
+                    {/\.(png|jpe?g|webp|gif)$/i.test(attachedName || '') ||
+                    attachedUri.startsWith('data:image') ? (
+                      <Image source={{ uri: attachedUri }} style={styles.attachmentThumb} />
+                    ) : (
+                      <View style={styles.attachmentIconCircle}>
+                        <Feather name="file-text" size={18} color={colors.primary} />
+                      </View>
+                    )}
+                    <View style={styles.attachmentInfo}>
+                      <Text style={styles.attachmentName} numberOfLines={1}>
+                        {attachedName || 'Berkas_Terlampir'}
+                      </Text>
+                      <Text style={styles.attachmentSub}>Berkas siap diunggah</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setAttachedUri(undefined)}
+                      style={styles.removeBtn}
+                      hitSlop={12}
+                    >
+                      <Feather name="trash-2" size={18} color={colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity activeOpacity={0.7} onPress={handlePickDocument} style={styles.uploadArea}>
+                    <View style={styles.uploadIconWrap}>
+                      <Feather name="upload-cloud" size={24} color={colors.primary} />
+                    </View>
+                    <Text style={styles.uploadTitle}>Unggah Bukti (foto / surat)</Text>
+                    <Text style={styles.uploadHint}>Mendukung format JPG, PNG, atau PDF</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={[styles.infoBanner, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                <Feather name="clock" size={18} color="#B45309" style={{ marginRight: 10 }} />
+                <Text style={[styles.infoText, { color: '#92400E' }]}>
+                  Izin telat hanya pemberitahuan. Presensi masuk tetap bisa dilakukan. Pengajuan
+                  menunggu persetujuan Admin Cabang.
+                </Text>
               </View>
             </>
           ) : (
@@ -577,7 +824,7 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
           {/* Action Buttons */}
           <View style={styles.buttonContainer}>
             <Button
-              title={loading ? 'Mengajukan...' : leaveCategory === 'lembur' ? 'Kirim Pengajuan Lembur' : 'Kirim Pengajuan'}
+              title={loading ? 'Mengajukan...' : leaveCategory === 'lembur' ? 'Kirim Pengajuan Lembur' : leaveCategory === 'telat' ? 'Kirim Izin Telat' : 'Kirim Pengajuan'}
               variant="primary"
               icon="send"
               loading={loading}
@@ -925,6 +1172,70 @@ const styles = StyleSheet.create({
   },
   otQuickSlotTextActive: {
     color: '#B45309',
+    fontWeight: '700',
+  },
+  telatSelectTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FBFE',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    minHeight: 50,
+    gap: 8,
+  },
+  telatSelectTriggerOpen: {
+    borderColor: colors.primary,
+  },
+  telatSelectText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.ink,
+  },
+  telatSelectPlaceholder: {
+    color: colors.faint,
+    fontWeight: '500',
+  },
+  telatDropdown: {
+    marginTop: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  telatOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderMuted,
+  },
+  telatOptionActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  telatOptionText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.ink,
+    fontWeight: '500',
+  },
+  telatOptionTextActive: {
+    color: colors.primaryDark,
+    fontWeight: '700',
+  },
+  telatOptionCustom: {
+    borderBottomWidth: 0,
+    backgroundColor: colors.background,
+  },
+  telatOptionCustomText: {
+    color: colors.primaryDark,
     fontWeight: '700',
   },
   otEstimateBanner: {

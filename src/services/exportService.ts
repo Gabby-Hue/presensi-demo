@@ -73,7 +73,10 @@ export function buildRekap(
     if (!byId.has(r.userId)) continue;
     if (r.approvalStatus === 'rejected') continue;
 
-    const isLeave = (r.type === 'izin_sakit' || r.sessionType === 'izin_sakit') && !r.reason?.includes('[LEMBUR]');
+    const isLeave =
+      (r.type === 'izin_sakit' || r.sessionType === 'izin_sakit') &&
+      !r.reason?.includes('[LEMBUR]') &&
+      !r.reason?.includes('[TELAT');
     const sDate = (r.startDate || r.date || '').slice(0, 10);
     const eDate = (r.endDate || r.date || '').slice(0, 10);
 
@@ -103,10 +106,21 @@ export function buildRekap(
     if (!u) continue;
     const masuk = arr.find((r) => r.sessionType === 'masuk');
     const pulang = arr.find((r) => r.sessionType === 'pulang');
-    const izin = arr.find((r) => r.sessionType === 'izin_sakit');
+    const izin = arr.find(
+      (r) => r.sessionType === 'izin_sakit' && !r.reason?.includes('[TELAT')
+    );
+    const telat = arr.find(
+      (r) => r.sessionType === 'izin_sakit' && r.reason?.includes('[TELAT')
+    );
     const isLembur = !!izin?.reason && izin.reason.includes('[LEMBUR]');
     const isSakit = !isLembur && (izin?.status === 'sakit' || Boolean(izin?.reason && izin.reason.includes('[SAKIT]')));
-    const status = isLembur ? 'Lembur' : izin ? (isSakit ? 'Sakit' : 'Izin') : 'Hadir';
+    const status = isLembur
+      ? 'Lembur'
+      : izin
+      ? (isSakit ? 'Sakit' : 'Izin')
+      : telat && !masuk && !pulang
+      ? 'Izin Telat'
+      : 'Hadir';
     const appr = arr.some((r) => r.approvalStatus === 'pending') ? 'Menunggu' : 'Disetujui';
     const kantor = masuk?.officeName || pulang?.officeName || izin?.officeName || (masuk?.type === 'daring' ? 'Di Luar' : '-');
     const jarak = masuk?.distanceMeters ?? pulang?.distanceMeters;
@@ -117,7 +131,7 @@ export function buildRekap(
 
     const fotoMasuk = resolveMediaUrl(masuk?.photoUrl) || '-';
     const fotoPulang = resolveMediaUrl(pulang?.photoUrl) || '-';
-    const dokumenIzin = resolveMediaUrl(izin?.documentUrl) || '-';
+    const dokumenIzin = resolveMediaUrl(izin?.documentUrl || telat?.documentUrl) || '-';
 
     rows.push({
       nama: u.fullName,
@@ -132,7 +146,7 @@ export function buildRekap(
       kantor,
       jarak: jarak != null ? `${jarak} m` : '-',
       koordinat,
-      alasan: izin?.reason || masuk?.reason || pulang?.reason || '-',
+      alasan: izin?.reason || telat?.reason || masuk?.reason || pulang?.reason || '-',
       fotoMasuk,
       fotoPulang,
       dokumenIzin,
@@ -279,7 +293,7 @@ export function printAttendanceSlip(data: SlipPrintData) {
 
     const dRecords = monthRecords.filter((r) => {
       if (r.date === dateStr) return true;
-      if (r.sessionType === 'izin_sakit' && !r.reason?.includes('[LEMBUR]')) {
+      if (r.sessionType === 'izin_sakit' && !r.reason?.includes('[LEMBUR]') && !r.reason?.includes('[TELAT')) {
         const s = (r.startDate || r.date || '').slice(0, 10);
         const e = (r.endDate || r.date || '').slice(0, 10);
         return Boolean(s && e && dateStr >= s && dateStr <= e);
@@ -288,7 +302,9 @@ export function printAttendanceSlip(data: SlipPrintData) {
     });
     const masuk = dRecords.find((r) => r.sessionType === 'masuk');
     const pulang = dRecords.find((r) => r.sessionType === 'pulang');
-    const izin = dRecords.find((r) => r.sessionType === 'izin_sakit');
+    const izin = dRecords.find(
+      (r) => r.sessionType === 'izin_sakit' && !r.reason?.includes('[TELAT')
+    );
 
     let masukTime = masuk ? jam(masuk.clockInTime) : '-';
     let pulangTime = pulang ? jam(pulang.clockInTime) : '-';

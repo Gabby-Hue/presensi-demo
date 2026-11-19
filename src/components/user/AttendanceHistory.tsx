@@ -57,6 +57,8 @@ export const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({ history })
                     ? 'Jam masuk: '
                     : record.reason && record.reason.includes('[LEMBUR]')
                     ? 'Jam lembur: '
+                    : record.reason && record.reason.includes('[TELAT')
+                    ? 'Izin telat: '
                     : 'Waktu: '}
                   {(() => {
                     const s = String(record.clockInTime || '').trim().replace(' ', 'T');
@@ -75,7 +77,10 @@ export const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({ history })
             </View>
 
             <View style={styles.rightGroup}>
-              <Badge type={record.type} size="sm" />
+              <Badge
+                type={record.reason && record.reason.includes('[TELAT') ? 'telat' : record.type}
+                size="sm"
+              />
               <Feather name="chevron-right" size={16} color={colors.faint} style={{ marginTop: 4 }} />
             </View>
           </TouchableOpacity>

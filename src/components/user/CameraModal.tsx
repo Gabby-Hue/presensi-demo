@@ -16,6 +16,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Button } from '../ui/Button';
 import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, radius, spacing } from '../../theme';
+import { tap } from '../../services/feedbackService';
 
 export interface AttendancePhotoMetadata {
   userName?: string;
@@ -423,7 +424,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
             <TouchableOpacity
               activeOpacity={0.7}
               style={styles.retryTextBtn}
-              onPress={initWebCamera}
+              onPress={() => initWebCamera()}
             >
               <Feather name="refresh-cw" size={13} color={colors.primary} style={{ marginRight: 6 }} />
               <Text style={styles.retryTextBtnText}>Coba Nyalakan Kamera Browser</Text>
