@@ -1,4 +1,4 @@
-// E-Presensi UI · User Profile Screen
+// PresensiPro UI · User Profile Screen
 // Clean circular avatar with camera/gallery image picker, refined layout, and device info.
 
 import React, { useEffect, useState } from 'react';

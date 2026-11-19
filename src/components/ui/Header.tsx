@@ -1,5 +1,5 @@
-// E-Presensi UI · Modern Header
-// E-Presensi logo, crisp typography, clean avatar widget.
+// PresensiPro UI · Modern Header
+// PresensiPro logo, crisp typography, clean avatar widget.
 
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -24,7 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onPressProfile }) => {
           resizeMode="contain"
         />
         <View>
-          <Text style={styles.appName}>E-Presensi</Text>
+          <Text style={styles.appName}>PresensiPro</Text>
           <Text style={styles.role}>
             {user.role === 'superadmin' ? 'Superadmin' : user.role === 'admin' ? 'Admin Sistem' : user.department || 'Karyawan'}
           </Text>

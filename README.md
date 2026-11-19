@@ -1,10 +1,10 @@
-# E-Presensi Pro (Vercel + Supabase)
+# PresensiPro (Vercel + Supabase)
 
 Aplikasi presensi modern, clean, dan responsif (Web & Mobile Expo) yang terhubung langsung ke **Supabase** (Auth, PostgreSQL DB, dan Storage) serta siap dideploy ke **Vercel** dengan 1 klik.
 
 ## Keunggulan
 - **Fitur Lengkap**: Geofencing multi-kantor, swafoto webcam/HP dengan watermark waktu real-time, approval izin/sakit, kalender status dinamis, manajemen PT/departemen, audit logs, timesheet kegiatan proyek, dan ekspor Excel/PDF.
-- **Desain Netral & Bersih**: Pure polosan, bebas trademark/branding apa pun, hanya label resmi aplikasi `E-Presensi`.
+- **Desain Netral & Bersih**: Pure polosan, bebas trademark/branding apa pun, hanya label resmi aplikasi `PresensiPro`.
 - **Hanya Akun Super Admin**: Database awal bersih tanpa akun dummy. Akun pertama yang tersedia adalah Super Admin (`admin@admin.com` / `123456`).
 
 ---

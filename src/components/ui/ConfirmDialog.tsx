@@ -1,4 +1,4 @@
-// E-Presensi UI · Modern Shadcn Confirm Dialog
+// PresensiPro UI · Modern Shadcn Confirm Dialog
 // Clean hairline borders, soft overlay backdrop, accessible buttons.
 
 import React from 'react';

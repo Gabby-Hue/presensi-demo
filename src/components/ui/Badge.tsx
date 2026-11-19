@@ -1,4 +1,4 @@
-// E-Presensi UI · Modern Shadcn Badge
+// PresensiPro UI · Modern Shadcn Badge
 // Clean semantic pill badge with soft pastel tones, clear typography, and subtle border.
 
 import React from 'react';

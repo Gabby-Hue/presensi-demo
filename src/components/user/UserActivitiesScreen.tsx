@@ -1,4 +1,4 @@
-// E-Presensi · Timesheet & Log Kegiatan Harian Staf
+// PresensiPro · Timesheet & Log Kegiatan Harian Staf
 // Fitur: Interactive Date Strip, Batasan Jam Kerja Reguler (s.d. Jam 17:00 / Jam Global),
 // Lampiran Foto Dokumentasi (Opsional), serta Perekaman Koordinat GPS Otomatis.
 
@@ -786,7 +786,7 @@ export const UserActivitiesScreen: React.FC<UserActivitiesScreenProps> = ({
         metadata={{
           userName: user.fullName,
           department: user.department || 'Operasional',
-          companyName: user.companyName || 'E-Presensi',
+          companyName: user.companyName || 'PresensiPro',
           sessionLabel: 'FOTO KEGIATAN',
           statusLabel: selectedProject.trim() || 'Aktivitas Kerja',
           officeName: 'Lokasi Kerja',

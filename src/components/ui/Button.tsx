@@ -1,4 +1,4 @@
-// E-Presensi UI · Modern Shadcn Button
+// PresensiPro UI · Modern Shadcn Button
 // Clean hairline borders, subtle ambient micro-shadow, and responsive tactile sound/vibration feedback.
 
 import React from 'react';

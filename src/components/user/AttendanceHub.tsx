@@ -968,7 +968,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
               resizeMode="contain"
             />
             <View style={{ flex: 1 }}>
-              <Text style={styles.welcomeAppSubtitle}>e-Presensi Digital</Text>
+              <Text style={styles.welcomeAppSubtitle}>PresensiPro</Text>
               <Text style={styles.welcomeGreeting} numberOfLines={1}>
                 Selamat datang, {firstName}
               </Text>
@@ -1901,7 +1901,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
         metadata={{
           userName: user.fullName,
           department: user.department || 'Operasional',
-          companyName: user?.companyName || 'E-Presensi',
+          companyName: user?.companyName || 'PresensiPro',
           sessionLabel: mode === 'masuk' ? 'PRESENSI MASUK' : 'PRESENSI PULANG',
           statusLabel: mode === 'masuk' ? (isLateCheckIn ? 'Terlambat' : 'Tepat Waktu') : 'Selesai',
           officeName: place === 'kantor' ? (nearestOffice?.officeName || 'Kantor Cabang') : 'Presensi Di Luar',

@@ -1,4 +1,4 @@
-// E-Presensi UI · Modern Shadcn Card
+// PresensiPro UI · Modern Shadcn Card
 // Crisp hairline border, soft ambient shadow, structured header.
 
 import React from 'react';

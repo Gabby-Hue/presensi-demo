@@ -718,7 +718,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 resizeMode="contain"
               />
               <View>
-                <Text style={styles.brandTitle}>E-Presensi</Text>
+                <Text style={styles.brandTitle}>PresensiPro</Text>
                 <Text style={styles.brandSub}>Panel Admin</Text>
               </View>
             </View>

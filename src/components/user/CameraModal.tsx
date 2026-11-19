@@ -94,12 +94,12 @@ function drawWatermark(
   ctx.fillStyle = '#1E293B';
   ctx.fillRect(0, startY, width, Math.max(1, Math.round(1 * scale)));
 
-  // 3. Header Baris 1: Badge E-Presensi + Badge Sesi Presensi
+  // 3. Header Baris 1: Badge PresensiPro + Badge Sesi Presensi
   const isPulang = (metadata.sessionLabel || attendanceTypeLabel || '').toLowerCase().includes('pulang');
   const sessionTag = metadata.sessionLabel || (isPulang ? 'PRESENSI PULANG' : 'PRESENSI MASUK');
 
-  // Kotak Badge E-Presensi (Putih Bersih dengan Rounded Corners)
-  const logoBoxW = Math.round(92 * scale);
+  // Kotak Badge PresensiPro (Putih Bersih dengan Rounded Corners)
+  const logoBoxW = Math.round(100 * scale);
   const logoBoxH = Math.round(26 * scale);
   const logoBoxX = paddingX;
   const logoBoxY = startY + Math.round(10 * scale);
@@ -110,7 +110,7 @@ function drawWatermark(
 
   ctx.font = `bold ${Math.round(11 * scale)}px sans-serif`;
   ctx.fillStyle = '#0061A4';
-  ctx.fillText('E-PRESENSI', logoBoxX + Math.round(8 * scale), logoBoxY + Math.round(17 * scale));
+  ctx.fillText('PRESENSIPRO', logoBoxX + Math.round(8 * scale), logoBoxY + Math.round(17 * scale));
 
   // Badge Sesi (Masuk: Hijau Emerald / Pulang: Oranye Sunset)
   const badgeX = logoBoxX + logoBoxW + Math.round(8 * scale);

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "E-Presensi",
+    "name": "PresensiPro",
     "slug": "e-presensi",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,13 +33,13 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Aplikasi E-Presensi memerlukan akses lokasi untuk verifikasi kehadiran presensi luring."
+          "locationAlwaysAndWhenInUsePermission": "Aplikasi PresensiPro memerlukan akses lokasi untuk verifikasi kehadiran presensi luring."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Aplikasi E-Presensi memerlukan akses kamera untuk verifikasi swafoto presensi."
+          "cameraPermission": "Aplikasi PresensiPro memerlukan akses kamera untuk verifikasi swafoto presensi."
         }
       ],
       [

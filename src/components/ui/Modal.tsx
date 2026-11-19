@@ -1,4 +1,4 @@
-// E-Presensi UI · Modern Shadcn Bottom Sheet Modal
+// PresensiPro UI · Modern Shadcn Bottom Sheet Modal
 // Clean hairline border, soft overlay backdrop, accessible close button.
 
 import React from 'react';

@@ -1,4 +1,4 @@
-// E-Presensi UI · Modern Shadcn Dock NavBar (5 Tabs)
+// PresensiPro UI · Modern Shadcn Dock NavBar (5 Tabs)
 // Tab Bar: Presensi, Kegiatan, Profil (Bulat Tengah dengan Foto Asli), Kalender, Pengajuan.
 
 import React from 'react';

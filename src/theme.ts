@@ -1,4 +1,4 @@
-// E-Presensi Design System — Modern Shadcn Clean (Slick, Flat, Refined)
+// PresensiPro Design System — Modern Shadcn Clean (Slick, Flat, Refined)
 // Zero 3D slop, zero harsh dark borders. Pure crisp surfaces, subtle hairline borders, and elegant micro-tokens.
 
 import { Platform } from 'react-native';

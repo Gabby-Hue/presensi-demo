@@ -1,4 +1,4 @@
-// E-Presensi UI · Modern Shadcn Login Screen
+// PresensiPro UI · Modern Shadcn Login Screen
 // Clean surfaces, subtle hairline borders, refined typography.
 
 import React, { useState } from 'react';
@@ -70,7 +70,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>E-Presensi</Text>
+            <Text style={styles.title}>PresensiPro</Text>
             <Text style={styles.subtitle}>Portal Presensi Karyawan</Text>
           </View>
 

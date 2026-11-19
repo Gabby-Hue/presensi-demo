@@ -1,6 +1,6 @@
-// E-Presensi UI · Shadcn-Inspired Attendance Calendar
+// PresensiPro UI · Shadcn-Inspired Attendance Calendar
 // Clean institutional calendar layout, monthly stat summary strip, polished nav controls,
-// and authentic E-Presensi semantic session colors.
+// and authentic PresensiPro semantic session colors.
 
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -213,7 +213,7 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
     return { hadir, satuSesi, izin, alpa };
   }, [attendanceMap, daysInMonth, isPastMonth, isCurrentMonth, todayDate, year, month, userJoinDateKey]);
 
-  // Skema warna asli E-Presensi:
+  // Skema warna asli PresensiPro:
   // alpa = abu-abu solid, 1 sesi = kuning solid, lengkap = biru solid,
   // lengkap_izin = biru solid tapi border merah (izin setengah hari),
   // izin = merah hollow (putih + border merah), Sabtu-Minggu / Libur Nasional kosong = merah solid

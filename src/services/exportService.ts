@@ -576,7 +576,7 @@ export function printAttendanceSlip(data: SlipPrintData) {
 <body>
   <div class="header-box">
     <div>
-      <h1 class="brand-title">E-PRESENSI</h1>
+      <h1 class="brand-title">PRESENSIPRO</h1>
       <p class="brand-sub">Sistem Informasi Kehadiran & Verifikasi Swafoto Karyawan</p>
     </div>
     <div class="doc-title">
