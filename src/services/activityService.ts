@@ -87,6 +87,8 @@ export async function createActivity(payload: {
   longitude?: number | null;
   locationAddress?: string | null;
   photoUrl?: string | null;
+  /** Diisi admin saat mencatat aktivitas atas nama karyawan. */
+  userId?: string;
 }): Promise<ActivityRecord> {
   const startParts = payload.startTime.split(':').map(Number);
   const endParts = payload.endTime.split(':').map(Number);
@@ -94,15 +96,15 @@ export async function createActivity(payload: {
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user;
+    const ownerId = payload.userId || session?.user?.id;
     let userName = 'Karyawan';
-    if (user?.id) {
-      const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    if (ownerId) {
+      const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', ownerId).maybeSingle();
       if (prof?.full_name) userName = prof.full_name;
     }
 
     const insertData: any = {
-      user_id: user?.id || '00000000-0000-0000-0000-000000000000',
+      user_id: ownerId || '00000000-0000-0000-0000-000000000000',
       user_name: userName,
       project_code: payload.projectCode.toUpperCase(),
       project_name: payload.projectName || payload.projectCode,
@@ -123,7 +125,10 @@ export async function createActivity(payload: {
     if (!error && data) {
       return mapActivityRow(data);
     }
+    if (error && payload.userId) throw new Error(error.message);
   } catch (err) {
+    // Input admin untuk karyawan tidak boleh "tersimpan" palsu di lokal — tampilkan errornya.
+    if (payload.userId) throw err;
     console.warn('Gagal create activity ke Supabase, menyimpan lokal:', err);
   }
 

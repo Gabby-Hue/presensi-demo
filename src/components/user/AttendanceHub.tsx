@@ -19,6 +19,7 @@ import {
   OfficeSettings,
   SessionType,
   UserProfile,
+  WorkShift,
 } from '../../types/attendance';
 import {
   calculateDistanceMeters,
@@ -140,6 +141,21 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const [mode, setMode] = useState<'masuk' | 'pulang'>('masuk');
   const [place, setPlace] = useState<'kantor' | 'luar'>('kantor');
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
+  const [myShift, setMyShift] = useState<WorkShift | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!user.shiftId) {
+      setMyShift(null);
+      return;
+    }
+    AttendanceService.getShift(user.shiftId)
+      .then((s) => alive && setMyShift(s))
+      .catch(() => alive && setMyShift(null));
+    return () => {
+      alive = false;
+    };
+  }, [user.shiftId]);
   const [nearestOffice, setNearestOffice] = useState<OfficeSettings | null>(offices[0] || null);
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number }>({
     latitude: offices[0]?.latitude ?? -7.23707,
@@ -334,9 +350,10 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     };
   };
 
-  const workStartStr = nearestOffice?.workStartTime || '08:00';
-  const workEndStr = nearestOffice?.workEndTime || '17:00';
-  const lateDeadStr = nearestOffice?.lateDeadline || '10:00';
+  // Karyawan dengan shift memakai jam shift; selain itu jam kantor terdekat.
+  const workStartStr = myShift?.startTime || nearestOffice?.workStartTime || '08:00';
+  const workEndStr = myShift?.endTime || nearestOffice?.workEndTime || '17:00';
+  const lateDeadStr = myShift?.lateDeadline || nearestOffice?.lateDeadline || '10:00';
 
   const { h: lateH, m: lateM } = parseHourMinute(lateDeadStr, 10, 0);
   const { h: endH, m: endM } = parseHourMinute(workEndStr, 17, 0);
@@ -359,6 +376,10 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     const end = (r.endDate || r.date || '').slice(0, 10);
     return !!(start && end && todayStr >= start && todayStr <= end);
   });
+
+  const todayTelatNotice = userHistory.some(
+    (r) => (r.date || '').slice(0, 10) === todayStr && !!r.reason?.includes('[TELAT') && r.approvalStatus !== 'rejected'
+  );
 
   // Deteksi akhir pekan / hari libur nasional (otomatis mode lembur)
   const isTodayWeekend = isWeekendDateString(todayStr);
@@ -988,7 +1009,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
               <Text style={styles.welcomeShiftText}>
                 {isLemburDay
                   ? `${getHolidayName(todayStr) || (isTodayWeekend ? 'Akhir Pekan' : 'Hari Libur')} (Lembur)`
-                  : `${workStartStr} - ${workEndStr} WIB`}
+                  : `${myShift ? myShift.name + ' · ' : ''}${workStartStr} - ${workEndStr} WIB`}
               </Text>
             </View>
             <TouchableOpacity
@@ -1259,6 +1280,21 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             </View>
           )}
         </View>
+
+        {/* Banner peringatan: sudah lewat batas terlambat kantor tapi belum absen masuk */}
+        {isLateCheckIn && !todayMasuk && !isFullLeaveActive && (
+          <View style={styles.lateAlert} accessibilityRole="alert">
+            <Feather name="alert-triangle" size={18} color={colors.danger} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lateAlertTitle}>Anda melewati batas terlambat ({lateDeadStr} WIB)</Text>
+              <Text style={styles.lateAlertSub}>
+                {todayTelatNotice
+                  ? 'Pemberitahuan terlambat Anda sudah terkirim. Segera lakukan absen masuk, presensi akan tercatat Terlambat.'
+                  : 'Absen masuk tetap bisa dilakukan, tetapi akan tercatat Terlambat.'}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* 3. SECTION: Pilih Kehadiran */}
         <View style={styles.sectionHeaderWrap}>
@@ -2820,6 +2856,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 16,
+  },
+  lateAlert: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: radius.md,
+    padding: 12,
+    marginBottom: 16,
+  },
+  lateAlertTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: '800',
+    color: colors.danger,
+  },
+  lateAlertSub: {
+    fontSize: fontSize.xs,
+    color: '#7F1D1D',
+    marginTop: 2,
+    fontWeight: '600',
+    lineHeight: 17,
   },
   lateQuickBtn: {
     flexDirection: 'row',

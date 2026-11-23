@@ -8,13 +8,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { UserProfile, AttendanceRecord } from '../../types/attendance';
 import { AttendanceService } from '../../services/attendanceService';
-import { ActivityRecord, fetchActivities } from '../../services/activityService';
+import { ActivityRecord, fetchActivities, createActivity } from '../../services/activityService';
 import { todayWIB, getInitials } from '../../utils/dates';
 import {
   buildRekap,
@@ -28,6 +29,13 @@ import { AdminBackupModal } from './AdminBackupModal';
 import { OfficeSettings } from '../../types/attendance';
 import { colors, fontSize, neoShadow, radius } from '../../theme';
 import { select, succeed } from '../../services/feedbackService';
+
+// Jam HH:MM WIB. Timestamp ber-zona (UTC/offset) dikonversi ke WIB; string lokal tanpa zona dipakai apa adanya.
+function clockWIB(s: string): string {
+  if (!/(Z|[+-]\d\d:?\d\d)$/.test(s)) return s.slice(11, 16);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? s.slice(11, 16) : new Date(d.getTime() + 7 * 3600e3).toISOString().slice(11, 16);
+}
 
 interface AdminDepartmentReportProps {
   users: UserProfile[];
@@ -57,6 +65,43 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
   const [staffActivities, setStaffActivities] = useState<ActivityRecord[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
+
+  // Form admin: isi aktivitas atas nama karyawan (untuk karyawan yang belum terbiasa)
+  const emptyActForm = () => ({ date: todayWIB(), start: '08:00', end: '17:00', desc: '' });
+  const [showActForm, setShowActForm] = useState(false);
+  const [actForm, setActForm] = useState(emptyActForm);
+  const [savingAct, setSavingAct] = useState(false);
+  const [actError, setActError] = useState<string | null>(null);
+
+  const submitStaffActivity = async () => {
+    if (!selectedStaff) return;
+    const timeOk = (t: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(actForm.date)) return setActError('Format tanggal harus YYYY-MM-DD.');
+    if (!timeOk(actForm.start) || !timeOk(actForm.end)) return setActError('Format jam harus HH:MM, mis. 08:00.');
+    if (actForm.end <= actForm.start) return setActError('Jam selesai harus setelah jam mulai.');
+    if (!actForm.desc.trim()) return setActError('Deskripsi aktivitas wajib diisi.');
+    setSavingAct(true);
+    setActError(null);
+    try {
+      await createActivity({
+        userId: selectedStaff.id,
+        projectCode: 'KEGIATAN',
+        projectName: 'Aktivitas Harian',
+        activityDate: actForm.date,
+        startTime: actForm.start,
+        endTime: actForm.end,
+        description: actForm.desc.trim(),
+      });
+      succeed();
+      setActForm(emptyActForm());
+      setShowActForm(false);
+      await openStaffActivitiesModal(selectedStaff);
+    } catch (e: any) {
+      setActError(e?.message || 'Gagal menyimpan aktivitas.');
+    } finally {
+      setSavingAct(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -248,6 +293,11 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
   // Aksi Karyawan Individu: 2. Buka Modal Rekap Kegiatan Pribadi
   const openStaffActivitiesModal = async (user: UserProfile) => {
     select();
+    if (selectedStaff?.id !== user.id) {
+      setShowActForm(false);
+      setActError(null);
+      setActForm(emptyActForm());
+    }
     setSelectedStaff(user);
     setLoadingActivities(true);
     try {
@@ -462,7 +512,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
                                   {isPresent ? (
                                     <View style={styles.presentPill}>
                                       <Text style={styles.presentPillText}>
-                                        Hadir {todayLog?.clockInTime ? `(${todayLog.clockInTime.slice(11, 16)} WIB)` : ''}
+                                        Hadir {todayLog?.clockInTime ? `(${clockWIB(todayLog.clockInTime)} WIB)` : ''}
                                       </Text>
                                     </View>
                                   ) : isTelatLeave ? (
@@ -541,6 +591,64 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
                   <Text style={styles.modalExportBtnText}>Unduh XLSX</Text>
                 </TouchableOpacity>
               )}
+            </View>
+          )}
+
+          {selectedStaff && !showActForm && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => { select(); setShowActForm(true); setActError(null); }}
+              style={styles.addActToggle}
+            >
+              <Feather name="plus" size={14} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.addActToggleText}>Isikan Aktivitas untuk Karyawan Ini</Text>
+            </TouchableOpacity>
+          )}
+
+          {showActForm && selectedStaff && (
+            <View style={styles.addActForm}>
+              <Text style={styles.addActTitle}>Isi aktivitas untuk {selectedStaff.fullName}</Text>
+              <View style={styles.addActRow}>
+                <View style={styles.addActFieldDate}>
+                  <Text style={styles.addActLabel}>Tanggal</Text>
+                  <TextInput style={styles.addActInput} value={actForm.date} placeholder="YYYY-MM-DD" maxLength={10}
+                    accessibilityLabel="Tanggal"
+                    onChangeText={(t) => { setActError(null); setActForm((f) => ({ ...f, date: t })); }} />
+                </View>
+                <View style={styles.addActFieldTime}>
+                  <Text style={styles.addActLabel}>Mulai</Text>
+                  <TextInput style={styles.addActInput} value={actForm.start} placeholder="08:00" maxLength={5}
+                    accessibilityLabel="Jam mulai"
+                    onChangeText={(t) => { setActError(null); setActForm((f) => ({ ...f, start: t })); }} />
+                </View>
+                <View style={styles.addActFieldTime}>
+                  <Text style={styles.addActLabel}>Selesai</Text>
+                  <TextInput style={styles.addActInput} value={actForm.end} placeholder="17:00" maxLength={5}
+                    accessibilityLabel="Jam selesai"
+                    onChangeText={(t) => { setActError(null); setActForm((f) => ({ ...f, end: t })); }} />
+                </View>
+              </View>
+              <Text style={styles.addActLabel}>Deskripsi</Text>
+              <TextInput style={[styles.addActInput, styles.addActTextarea]} multiline
+                value={actForm.desc} placeholder="Apa yang dikerjakan karyawan ini?" accessibilityLabel="Deskripsi aktivitas"
+                onChangeText={(t) => { setActError(null); setActForm((f) => ({ ...f, desc: t })); }} />
+              {actError ? <Text style={styles.addActError}>{actError}</Text> : null}
+              <View style={styles.addActActions}>
+                <TouchableOpacity activeOpacity={0.8} disabled={savingAct}
+                  onPress={() => { select(); setShowActForm(false); setActError(null); }}
+                  style={styles.addActCancel}>
+                  <Text style={styles.addActCancelText}>Batal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.85} disabled={savingAct} onPress={submitStaffActivity}
+                  style={[styles.addActSave, savingAct && { opacity: 0.6 }]}>
+                  {savingAct ? <ActivityIndicator color="#FFFFFF" size="small" /> : (
+                    <>
+                      <Feather name="check" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.addActSaveText}>Simpan Aktivitas</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -953,6 +1061,22 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 2,
   },
+  addActToggle: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary, marginBottom: 12 },
+  addActToggleText: { color: colors.primary, fontWeight: '700', fontSize: fontSize.sm },
+  addActForm: { padding: 16, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, marginBottom: 14 },
+  addActTitle: { fontSize: fontSize.md, fontWeight: '800', color: colors.ink, marginBottom: 6 },
+  addActRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  addActFieldDate: { flexGrow: 2, flexBasis: 120, minWidth: 0 },
+  addActFieldTime: { flexGrow: 1, flexBasis: 70, minWidth: 0 },
+  addActLabel: { fontSize: fontSize.xs, fontWeight: '700', color: colors.muted, marginTop: 10, marginBottom: 6 },
+  addActInput: { width: '100%', minWidth: 0, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 10, fontSize: fontSize.sm, color: colors.ink, backgroundColor: '#FFFFFF' },
+  addActTextarea: { minHeight: 88, textAlignVertical: 'top' },
+  addActError: { color: colors.danger, fontSize: fontSize.xs, fontWeight: '600', marginTop: 8 },
+  addActActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 14 },
+  addActCancel: { paddingVertical: 11, paddingHorizontal: 18, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, justifyContent: 'center' },
+  addActCancelText: { color: colors.muted, fontWeight: '700', fontSize: fontSize.sm },
+  addActSave: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minWidth: 170, paddingVertical: 11, paddingHorizontal: 18, borderRadius: radius.md, backgroundColor: colors.primary },
+  addActSaveText: { color: '#FFFFFF', fontWeight: '700', fontSize: fontSize.sm },
   modalExportBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -37,6 +37,18 @@ export interface UserProfile {
   deviceId?: string;
   plainPassword?: string;
   createdAt?: string;
+  /** Shift tetap karyawan (null = ikut jam kantor). */
+  shiftId?: string | null;
+}
+
+export interface WorkShift {
+  id: string;
+  companyId?: string | null;
+  department: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  lateDeadline: string;
 }
 
 export interface OfficeSettings {

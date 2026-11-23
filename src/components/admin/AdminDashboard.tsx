@@ -23,6 +23,7 @@ import { AdminCompanyManager } from './AdminCompanyManager';
 import { AdminEmployeeRecap } from './AdminEmployeeRecap';
 import { AdminApprovalQueue } from './AdminApprovalQueue';
 import { AdminDepartmentReport } from './AdminDepartmentReport';
+import { AdminShiftManager } from './AdminShiftManager';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { succeed, fail, select, tap } from '../../services/feedbackService';
 import { Feather } from '@expo/vector-icons';
@@ -672,6 +673,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           users={users}
           onChanged={onRefreshUsers}
         />
+      )}
+      {activeTab === 'departments' && (
+        <AdminShiftManager currentAdmin={currentAdmin} users={users} onChanged={onRefreshUsers} />
       )}
 
       {/* 5. TAB KELOLA KARYAWAN (HANYA ADMIN CABANG) */}

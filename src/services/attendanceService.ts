@@ -8,6 +8,7 @@ import {
   OfficeSettings,
   SessionType,
   UserProfile,
+  WorkShift,
 } from '../types/attendance';
 import { getDeviceInfo } from './deviceService';
 import { todayWIB } from '../utils/dates';
@@ -51,6 +52,19 @@ function mapUser(u: any): UserProfile {
     deviceId: u.device_id || u.deviceId || undefined,
     plainPassword: u.plain_password || u.plainPassword || '123456',
     createdAt: u.created_at || u.createdAt,
+    shiftId: u.shift_id != null ? String(u.shift_id) : null,
+  };
+}
+
+function mapShift(s: any): WorkShift {
+  return {
+    id: String(s.id),
+    companyId: s.company_id != null ? String(s.company_id) : null,
+    department: s.department,
+    name: s.name,
+    startTime: s.start_time,
+    endTime: s.end_time,
+    lateDeadline: s.late_deadline,
   };
 }
 
@@ -1222,5 +1236,47 @@ export class AttendanceService {
       }
     } catch {}
     return [];
+  }
+
+  // ================= SHIFT (per departemen, opsional) =================
+  static async getShifts(companyId?: string): Promise<WorkShift[]> {
+    let query = supabase.from('shifts').select('*').order('department').order('start_time');
+    if (companyId) query = query.eq('company_id', companyId);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return (data || []).map(mapShift);
+  }
+
+  static async getShift(id: string): Promise<WorkShift | null> {
+    const { data } = await supabase.from('shifts').select('*').eq('id', id).maybeSingle();
+    return data ? mapShift(data) : null;
+  }
+
+  static async addShift(s: Omit<WorkShift, 'id'>): Promise<WorkShift> {
+    const { data, error } = await supabase
+      .from('shifts')
+      .insert({
+        company_id: s.companyId || null,
+        department: s.department,
+        name: s.name,
+        start_time: s.startTime,
+        end_time: s.endTime,
+        late_deadline: s.lateDeadline,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return mapShift(data);
+  }
+
+  static async deleteShift(id: string): Promise<void> {
+    // profiles.shift_id otomatis NULL (ON DELETE SET NULL) -> karyawan kembali ke jam kantor
+    const { error } = await supabase.from('shifts').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  static async setUserShift(userId: string, shiftId: string | null): Promise<void> {
+    const { error } = await supabase.from('profiles').update({ shift_id: shiftId }).eq('id', userId);
+    if (error) throw new Error(error.message);
   }
 }
