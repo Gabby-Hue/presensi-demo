@@ -368,7 +368,7 @@ CREATE TRIGGER trg_no_dup_absen BEFORE INSERT ON public.attendances
   FOR EACH ROW EXECUTE FUNCTION public.trg_no_dup_absen();
 
 -- Shift kerja per departemen (opsional). Departemen tanpa shift tetap memakai jam kantor.
--- Karyawan punya satu shift tetap (profiles.shift_id), tidak ada rotasi.
+-- Karyawan punya shift tetap (profiles.shift_id) + jadwal per hari opsional (profiles.shift_schedule).
 -- Jalankan sekali di Supabase SQL Editor.
 
 CREATE TABLE IF NOT EXISTS public.shifts (
@@ -388,3 +388,4 @@ CREATE POLICY "Shifts public access" ON public.shifts FOR ALL USING (true) WITH 
 
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS shift_id UUID REFERENCES public.shifts(id) ON DELETE SET NULL;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS shift_schedule JSONB; -- {"0".."6": shift_id | null}, hari tanpa kunci ikut shift_id

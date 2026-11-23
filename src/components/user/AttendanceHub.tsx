@@ -43,6 +43,7 @@ import { AttendanceService } from '../../services/attendanceService';
 import { resolveMediaUrl } from '../../lib/api';
 import { succeed, fail, select } from '../../services/feedbackService';
 import { isWeekendDateString, isAfterTimeOfDay, todayWIB, getInitials } from '../../utils/dates';
+import { resolveWorkDay, isOvernight, isLateForShift, isClockOutOpenForShift } from '../../utils/shifts';
 import { getHolidayName, isNationalHoliday } from '../../utils/holidays';
 import { printAttendanceSlip } from '../../services/exportService';
 import { Feather } from '@expo/vector-icons';
@@ -67,6 +68,7 @@ interface AttendanceHubProps {
     endDate?: string;
     photoUrl?: string;
     documentUrl?: string;
+    workDate?: string;
   }) => Promise<void>;
   onLogout: () => void;
   onUpdateUser?: (updated: UserProfile) => void;
@@ -141,21 +143,22 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const [mode, setMode] = useState<'masuk' | 'pulang'>('masuk');
   const [place, setPlace] = useState<'kantor' | 'luar'>('kantor');
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
-  const [myShift, setMyShift] = useState<WorkShift | null>(null);
+  const [companyShifts, setCompanyShifts] = useState<WorkShift[]>([]);
+  const hasAnyShift = !!user.shiftId || Object.keys(user.shiftSchedule || {}).length > 0;
 
   useEffect(() => {
     let alive = true;
-    if (!user.shiftId) {
-      setMyShift(null);
+    if (!hasAnyShift) {
+      setCompanyShifts([]);
       return;
     }
-    AttendanceService.getShift(user.shiftId)
-      .then((s) => alive && setMyShift(s))
-      .catch(() => alive && setMyShift(null));
+    AttendanceService.getShifts(user.companyId || undefined)
+      .then((list) => alive && setCompanyShifts(list))
+      .catch(() => alive && setCompanyShifts([]));
     return () => {
       alive = false;
     };
-  }, [user.shiftId]);
+  }, [hasAnyShift, user.companyId]);
   const [nearestOffice, setNearestOffice] = useState<OfficeSettings | null>(offices[0] || null);
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number }>({
     latitude: offices[0]?.latitude ?? -7.23707,
@@ -350,6 +353,12 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     };
   };
 
+  // Shift hari ini (jadwal mingguan > shift tetap). Shift malam: setelah tengah malam masih tanggal kemarin.
+  const workDay = resolveWorkDay(user, companyShifts, currentTime);
+  const myShift = workDay.shift;
+  const nightShift = myShift && isOvernight(myShift) ? myShift : null;
+  const sinceStart = (d: Date) => resolveWorkDay(user, companyShifts, d).minutesSinceStart ?? 0;
+
   // Karyawan dengan shift memakai jam shift; selain itu jam kantor terdekat.
   const workStartStr = myShift?.startTime || nearestOffice?.workStartTime || '08:00';
   const workEndStr = myShift?.endTime || nearestOffice?.workEndTime || '17:00';
@@ -359,7 +368,7 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const { h: endH, m: endM } = parseHourMinute(workEndStr, 17, 0);
 
   // ---- Data untuk tombol & logs (sesi masuk, pulang, dan izin) ----
-  const todayStr = todayWIB();
+  const todayStr = workDay.date;
   const todayMasuk = userHistory.find(
     (r) => (r.date || '').slice(0, 10) === todayStr && r.sessionType === 'masuk'
   );
@@ -402,8 +411,11 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const effectiveEndM = isHalfDaySiang && isLeaveApproved ? halfDayOutM : endM;
 
   // Aturan jam datang: dinamis mengikuti batas terlambat kantor (libur/weekend = lembur bebas batas terlambat)
+  // shortcut: shift malam tidak mendukung izin setengah hari, upgrade bila ada kebutuhan.
   const isLateCheckIn = isLemburDay
     ? false
+    : nightShift
+    ? isLateForShift(nightShift, sinceStart(currentTime))
     : isHalfDayPagi && isLeaveApproved
     ? isAfterTimeOfDay(currentTime, 13, 0)
     : isAfterTimeOfDay(currentTime, lateH, lateM);
@@ -411,6 +423,8 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   // Aturan jam pulang: lembur weekend/libur dibuka begitu sudah masuk; hari biasa ikuti jam kantor atau izin siang
   const isClockOutUnlocked = isLemburDay
     ? !!todayMasuk
+    : nightShift
+    ? isClockOutOpenForShift(nightShift, sinceStart(currentTime))
     : isAfterTimeOfDay(currentTime, effectiveEndH, effectiveEndM) ||
       (currentTime.getHours() === effectiveEndH && currentTime.getMinutes() >= effectiveEndM) ||
       currentTime.getHours() > effectiveEndH;
@@ -420,6 +434,7 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     if (isClockOutUnlocked || isLemburDay) return '';
     const target = new Date(currentTime);
     target.setHours(effectiveEndH, effectiveEndM, 0, 0);
+    if (nightShift && target <= currentTime) target.setDate(target.getDate() + 1);
     const diffMs = Math.max(0, target.getTime() - currentTime.getTime());
     const h = Math.floor(diffMs / (1000 * 60 * 60));
     const m = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -774,7 +789,9 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
         setPendingLeaveData(null);
       } else {
         const now = new Date();
-        const isLate = mode === 'masuk' && isAfterTimeOfDay(now, lateH, lateM);
+        const isLate =
+          mode === 'masuk' &&
+          (nightShift ? isLateForShift(nightShift, sinceStart(now)) : isAfterTimeOfDay(now, lateH, lateM));
         let finalReason = place === 'luar' ? reason.trim() : undefined;
         if (isLate) {
           finalReason = finalReason ? `${finalReason} (Terlambat: Masuk > ${lateDeadStr})` : `Terlambat (> ${lateDeadStr} WIB)`;
@@ -790,6 +807,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
           officeColor: place === 'kantor' ? nearestOffice?.color : undefined,
           reason: finalReason,
           photoUrl: publicPhotoUrl,
+          workDate: todayStr,
         });
         setReason('');
       }

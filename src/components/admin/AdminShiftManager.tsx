@@ -6,6 +6,7 @@ import { AttendanceService } from '../../services/attendanceService';
 import { Card } from '../ui/Card';
 import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
+import { DAY_LABELS, ShiftSchedule, isOvernight, validateShiftTimes } from '../../utils/shifts';
 
 interface Props {
   currentAdmin: UserProfile;
@@ -18,7 +19,8 @@ const emptyForm = { name: '', start: '07:00', end: '15:00', late: '07:15' };
 
 /**
  * Shift per departemen (opsional). Departemen tanpa shift (mis. HRD, Accounting) tetap ikut jam kantor.
- * Tiap karyawan dipasang ke satu shift tetap — tidak ada rotasi.
+ * Karyawan punya shift tetap + jadwal per hari (opsional) yang menimpa shift tetap pada hari itu.
+ * Shift dari departemen lain boleh dipakai; shift boleh lewat tengah malam (mis. 22:00 - 06:00).
  */
 export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChanged }) => {
   const companyId = currentAdmin.role === 'superadmin' ? undefined : currentAdmin.companyId || undefined;
@@ -32,6 +34,8 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
   const [busy, setBusy] = useState(false);
   // shift_id lokal agar pilihan langsung terlihat sebelum daftar user di-refresh
   const [assigned, setAssigned] = useState<Record<string, string | null>>({});
+  const [schedules, setSchedules] = useState<Record<string, ShiftSchedule>>({});
+  const [openSchedule, setOpenSchedule] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -69,8 +73,8 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
     const name = form.name.trim();
     if (!name) return setFormError('Nama shift wajib diisi (mis. Shift Pagi).');
     if (![form.start, form.end, form.late].every((t) => TIME_RE.test(t))) return setFormError('Format jam harus HH:MM, mis. 07:00.');
-    if (form.end <= form.start) return setFormError('Jam pulang harus setelah jam masuk (shift lewat tengah malam belum didukung).');
-    if (form.late < form.start || form.late >= form.end) return setFormError('Batas terlambat harus di antara jam masuk dan jam pulang.');
+    const timeError = validateShiftTimes(form.start, form.end, form.late);
+    if (timeError) return setFormError(timeError);
     setBusy(true);
     setFormError(null);
     try {
@@ -129,6 +133,61 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
     }
   };
 
+  const scheduleOf = (u: UserProfile): ShiftSchedule => schedules[u.id] ?? u.shiftSchedule ?? {};
+
+  // value undefined = hari itu ikut shift tetap
+  const setDay = async (u: UserProfile, day: number, value: string | null | undefined) => {
+    select();
+    const prev = scheduleOf(u);
+    const next: ShiftSchedule = { ...prev };
+    if (value === undefined) delete next[day];
+    else next[day] = value;
+    setSchedules((s) => ({ ...s, [u.id]: next }));
+    try {
+      await AttendanceService.setUserShiftSchedule(u.id, Object.keys(next).length ? next : null);
+      onChanged();
+    } catch (e: any) {
+      fail();
+      setSchedules((s) => ({ ...s, [u.id]: prev }));
+      setFormError(e?.message || 'Gagal menyimpan jadwal karyawan.');
+    }
+  };
+
+  const shiftLabel = (s: WorkShift, dept: string) => (s.department === dept ? s.name : s.name + ' (' + s.department + ')');
+  // Shift departemen sendiri dulu, lalu shift departemen lain.
+  const shiftsFor = (dept: string) => [
+    ...shifts.filter((s) => s.department === dept),
+    ...shifts.filter((s) => s.department !== dept),
+  ];
+
+  const renderChips = (
+    dept: string,
+    current: string | null | undefined,
+    onPick: (id: string | null | undefined) => void,
+    withDefault: boolean
+  ) => {
+    const known = current == null || shifts.some((s) => s.id === current);
+    const opts: { id: string | null | undefined; name: string }[] = [
+      ...(withDefault ? [{ id: undefined, name: 'Ikut shift tetap' }] : []),
+      { id: null, name: 'Jam kantor' },
+      ...shiftsFor(dept).map((s) => ({ id: s.id, name: shiftLabel(s, dept) })),
+    ];
+    return (
+      <View style={styles.chips}>
+        {opts.map((o) => {
+          // shift yang sudah dihapus dianggap jam kantor
+          const on = o.id === (known ? current : null);
+          return (
+            <TouchableOpacity key={o.id === undefined ? 'default' : o.id || 'none'} onPress={() => onPick(o.id)}
+              style={[styles.chip, on && styles.chipOn]} accessibilityState={{ selected: on }}>
+              <Text style={[styles.chipText, on && { color: '#FFFFFF' }]}>{o.name}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
   return (
     <Card title="Shift Kerja per Departemen" subtitle="Opsional. Departemen tanpa shift tetap memakai jam kantor." icon="clock">
       {loading ? (
@@ -169,7 +228,7 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={styles.shiftName}>{s.name}</Text>
                           <Text style={styles.deptSub}>
-                            {s.startTime} - {s.endTime} WIB · telat setelah {s.lateDeadline}
+                            {s.startTime} - {s.endTime} WIB{isOvernight(s) ? ' (lewat tengah malam)' : ''} · telat setelah {s.lateDeadline}
                           </Text>
                         </View>
                         <TouchableOpacity onPress={() => removeShift(s)} disabled={busy} hitSlop={10} accessibilityLabel={`Hapus ${s.name}`}>
@@ -196,28 +255,39 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
                       <Text style={styles.addBtnText}>Tambah Shift {dept}</Text>
                     </TouchableOpacity>
 
-                    {deptShifts.length > 0 && (
+                    {shifts.length > 0 && (
                       <>
-                        <Text style={[styles.label, { marginTop: 12 }]}>Shift tetap tiap karyawan</Text>
+                        <Text style={[styles.label, { marginTop: 12 }]}>Shift tiap karyawan</Text>
                         {staff.length === 0 ? (
                           <Text style={styles.deptSub}>Belum ada karyawan di departemen ini.</Text>
                         ) : (
                           staff.map((u) => {
-                            const cur = shiftOf(u);
+                            const sched = scheduleOf(u);
+                            const customDays = Object.keys(sched).length;
+                            const schedOpen = openSchedule === u.id;
                             return (
-                              <View key={u.id} style={styles.staffRow}>
-                                <Text style={styles.staffName} numberOfLines={1}>{u.fullName}</Text>
-                                <View style={styles.chips}>
-                                  {[{ id: null as string | null, name: 'Jam kantor' }, ...deptShifts].map((s) => {
-                                    const on = cur === s.id;
-                                    return (
-                                      <TouchableOpacity key={s.id || 'none'} onPress={() => assign(u, s.id)}
-                                        style={[styles.chip, on && styles.chipOn]} accessibilityState={{ selected: on }}>
-                                        <Text style={[styles.chipText, on && { color: '#FFFFFF' }]}>{s.name}</Text>
-                                      </TouchableOpacity>
-                                    );
-                                  })}
+                              <View key={u.id} style={styles.staffBlock}>
+                                <View style={styles.staffRow}>
+                                  <Text style={styles.staffName} numberOfLines={1}>{u.fullName}</Text>
+                                  {renderChips(dept, shiftOf(u), (id) => assign(u, id ?? null), false)}
                                 </View>
+                                <TouchableOpacity onPress={() => { select(); setOpenSchedule(schedOpen ? null : u.id); }}
+                                  style={styles.schedToggle} accessibilityState={{ expanded: schedOpen }}>
+                                  <Feather name="calendar" size={13} color={colors.primary} />
+                                  <Text style={styles.schedToggleText}>
+                                    {'Jadwal per hari' + (customDays ? ' · ' + customDays + ' hari diatur' : '')}
+                                  </Text>
+                                  <Feather name={schedOpen ? 'chevron-up' : 'chevron-down'} size={13} color={colors.primary} />
+                                </TouchableOpacity>
+                                {schedOpen &&
+                                  [1, 2, 3, 4, 5, 6, 0].map((d) => (
+                                    <View key={d} style={styles.dayRow}>
+                                      <Text style={styles.dayLabel}>{DAY_LABELS[d]}</Text>
+                                      <View style={{ flex: 1 }}>
+                                        {renderChips(dept, String(d) in sched ? sched[d] : undefined, (id) => setDay(u, d, id), true)}
+                                      </View>
+                                    </View>
+                                  ))}
                               </View>
                             );
                           })
@@ -249,6 +319,11 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: fontSize.xs, fontWeight: '600', marginTop: 4 },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 10, marginTop: 8 },
   addBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: fontSize.sm },
+  staffBlock: { paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: colors.border },
+  schedToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, alignSelf: 'flex-start' },
+  schedToggleText: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
+  dayRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
+  dayLabel: { width: 32, fontSize: fontSize.xs, fontWeight: '700', color: colors.muted, paddingTop: 6 },
   staffRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingVertical: 6 },
   staffName: { flexBasis: 140, flexGrow: 1, fontSize: fontSize.sm, fontWeight: '600', color: colors.ink },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

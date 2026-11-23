@@ -39,6 +39,8 @@ export interface UserProfile {
   createdAt?: string;
   /** Shift tetap karyawan (null = ikut jam kantor). */
   shiftId?: string | null;
+  /** Jadwal per hari ("0"=Minggu … "6"=Sabtu -> id shift / null jam kantor). Hari tanpa kunci ikut shiftId. */
+  shiftSchedule?: Record<string, string | null> | null;
 }
 
 export interface WorkShift {

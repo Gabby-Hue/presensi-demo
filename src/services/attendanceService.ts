@@ -53,6 +53,7 @@ function mapUser(u: any): UserProfile {
     plainPassword: u.plain_password || u.plainPassword || '123456',
     createdAt: u.created_at || u.createdAt,
     shiftId: u.shift_id != null ? String(u.shift_id) : null,
+    shiftSchedule: u.shift_schedule || null,
   };
 }
 
@@ -783,9 +784,12 @@ export class AttendanceService {
     endDate?: string;
     photoUrl?: string;
     documentUrl?: string;
+    /** Tanggal kerja (shift malam: pulang lewat tengah malam tercatat di tanggal masuk). Hanya hari ini/kemarin. */
+    workDate?: string;
   }): Promise<AttendanceRecord> {
     const now = new Date();
-    const today = todayWIB(now);
+    const yesterday = todayWIB(new Date(now.getTime() - 24 * 3600e3));
+    const today = params.workDate === yesterday ? yesterday : todayWIB(now);
     const isSakit = params.type === 'izin_sakit' && (params.status === 'sakit' || (params.reason && params.reason.includes('[SAKIT]')));
     const status = params.type === 'izin_sakit' ? (isSakit ? 'sakit' : 'izin') : (params.status || 'hadir');
     const sType = params.sessionType || (params.type === 'izin_sakit' ? 'izin_sakit' : 'masuk');
@@ -1273,6 +1277,11 @@ export class AttendanceService {
     // profiles.shift_id otomatis NULL (ON DELETE SET NULL) -> karyawan kembali ke jam kantor
     const { error } = await supabase.from('shifts').delete().eq('id', id);
     if (error) throw new Error(error.message);
+  }
+
+  static async setUserShiftSchedule(userId: string, schedule: Record<string, string | null> | null): Promise<void> {
+    const { error } = await supabase.from('profiles').update({ shift_schedule: schedule }).eq('id', userId);
+    if (error) throw error;
   }
 
   static async setUserShift(userId: string, shiftId: string | null): Promise<void> {

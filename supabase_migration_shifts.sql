@@ -1,5 +1,5 @@
 -- Shift kerja per departemen (opsional). Departemen tanpa shift tetap memakai jam kantor.
--- Karyawan punya satu shift tetap (profiles.shift_id), tidak ada rotasi.
+-- Karyawan punya shift tetap (profiles.shift_id) + jadwal per hari opsional (profiles.shift_schedule).
 -- Jalankan sekali di Supabase SQL Editor.
 
 CREATE TABLE IF NOT EXISTS public.shifts (
@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.shifts (
   department TEXT NOT NULL,
   name TEXT NOT NULL,
   start_time TEXT NOT NULL,      -- 'HH:MM'
-  end_time TEXT NOT NULL,        -- 'HH:MM' (harus > start_time, shift lintas tengah malam belum didukung)
+  end_time TEXT NOT NULL,        -- 'HH:MM' (<= start_time berarti lewat tengah malam)
   late_deadline TEXT NOT NULL,   -- 'HH:MM'
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -19,3 +19,7 @@ CREATE POLICY "Shifts public access" ON public.shifts FOR ALL USING (true) WITH 
 
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS shift_id UUID REFERENCES public.shifts(id) ON DELETE SET NULL;
+
+-- Jadwal per hari: {"0".."6" (Minggu..Sabtu): shift_id | null (jam kantor)}. Hari tanpa kunci ikut shift_id.
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS shift_schedule JSONB;

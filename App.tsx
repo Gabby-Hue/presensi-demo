@@ -212,6 +212,7 @@ function AppContent() {
     endDate?: string;
     photoUrl?: string;
     documentUrl?: string;
+    workDate?: string;
   }) => {
     if (!currentUser) return;
 
