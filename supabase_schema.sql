@@ -393,3 +393,6 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS shift_schedule JSONB; -- {"
 -- Kuota cuti (izin, bukan sakit) per tahun dalam hari.
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS leave_quota INTEGER NOT NULL DEFAULT 12 CHECK (leave_quota BETWEEN 0 AND 365);
+
+-- Satu presensi masuk/pulang per karyawan per tanggal (mencegah absen dobel).
+CREATE UNIQUE INDEX IF NOT EXISTS attendances_one_session_per_day ON public.attendances (user_id, date, session_type) WHERE session_type IN ('masuk','pulang');

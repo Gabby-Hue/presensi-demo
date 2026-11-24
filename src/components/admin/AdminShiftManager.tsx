@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { UserProfile, WorkShift } from '../../types/attendance';
@@ -49,8 +49,11 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
       setShifts(list);
       setLoadError(null);
     } catch (e: any) {
+      const msg = String(e?.message || e);
       setLoadError(
-        'Tabel shift belum ada. Jalankan supabase_migration_shifts.sql di Supabase SQL Editor. (' + (e?.message || e) + ')'
+        /relation .*shifts.* does not exist|42P01/i.test(msg + (e?.code || ''))
+          ? 'Tabel shift belum ada. Jalankan supabase_migration_shifts.sql di Supabase SQL Editor.'
+          : 'Gagal memuat data shift. Periksa koneksi lalu buka menu ini lagi. (' + msg + ')'
       );
     } finally {
       setLoading(false);
@@ -129,7 +132,7 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
       onChanged();
     } catch (e: any) {
       fail();
-      setAssigned((a) => ({ ...a, [u.id]: prev }));
+      setAssigned((a) => (a[u.id] === shiftId ? { ...a, [u.id]: prev } : a));
       setFormError(e?.message || 'Gagal menyimpan shift karyawan.');
     }
   };
@@ -137,21 +140,35 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
   const scheduleOf = (u: UserProfile): ShiftSchedule => schedules[u.id] ?? u.shiftSchedule ?? {};
 
   // value undefined = hari itu ikut shift tetap
-  const setDay = async (u: UserProfile, day: number, value: string | null | undefined) => {
+  // Antrian simpan per karyawan agar klik cepat tidak saling menimpa di database.
+  const saveQueue = useRef<Record<string, Promise<void>>>({});
+  const latest = useRef<Record<string, ShiftSchedule>>({});
+
+  const setDay = (u: UserProfile, day: number, value: string | null | undefined) => {
     select();
-    const prev = scheduleOf(u);
-    const next: ShiftSchedule = { ...prev };
+    const base = latest.current[u.id] ?? scheduleOf(u);
+    const prevValue = base[day];
+    const hadKey = String(day) in base;
+    const next: ShiftSchedule = { ...base };
     if (value === undefined) delete next[day];
     else next[day] = value;
+    latest.current[u.id] = next;
     setSchedules((s) => ({ ...s, [u.id]: next }));
-    try {
-      await AttendanceService.setUserShiftSchedule(u.id, Object.keys(next).length ? next : null);
-      onChanged();
-    } catch (e: any) {
-      fail();
-      setSchedules((s) => ({ ...s, [u.id]: prev }));
-      setFormError(e?.message || 'Gagal menyimpan jadwal karyawan.');
-    }
+    saveQueue.current[u.id] = (saveQueue.current[u.id] || Promise.resolve()).then(async () => {
+      try {
+        await AttendanceService.setUserShiftSchedule(u.id, Object.keys(next).length ? next : null);
+        onChanged();
+      } catch (e: any) {
+        fail();
+        // kembalikan hanya hari ini, perubahan hari lain yang berhasil tetap
+        const cur = { ...(latest.current[u.id] ?? next) };
+        if (hadKey) cur[day] = prevValue;
+        else delete cur[day];
+        latest.current[u.id] = cur;
+        setSchedules((s) => ({ ...s, [u.id]: cur }));
+        setFormError(e?.message || 'Gagal menyimpan jadwal karyawan.');
+      }
+    });
   };
 
   const today = todayWIB();
@@ -180,8 +197,8 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
     return (
       <View style={styles.chips}>
         {opts.map((o) => {
-          // shift yang sudah dihapus dianggap jam kantor
-          const on = o.id === (known ? current : null);
+          // shift yang sudah dihapus: hari itu ikut shift tetap (di jadwal) / jam kantor (shift tetap)
+          const on = o.id === (known ? current : withDefault ? undefined : null);
           return (
             <TouchableOpacity key={o.id === undefined ? 'default' : o.id || 'none'} onPress={() => onPick(o.id)}
               style={[styles.chip, on && styles.chipOn]} accessibilityState={{ selected: on }}>
@@ -192,6 +209,14 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
       </View>
     );
   };
+
+  if (currentAdmin.role !== 'superadmin' && !currentAdmin.companyId) {
+    return (
+      <Card title="Shift Kerja" subtitle="Akun admin ini belum terhubung ke perusahaan." icon="clock">
+        <Text style={styles.error}>Hubungi admin pusat untuk menautkan akun ini ke perusahaan sebelum mengatur shift.</Text>
+      </Card>
+    );
+  }
 
   return (
     <Card title="Shift Kerja" subtitle="Buka departemen untuk membuat shift dan memilih shift tiap karyawan. Tanpa shift = jam kantor." icon="clock">

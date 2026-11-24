@@ -875,6 +875,9 @@ export class AttendanceService {
       .single();
 
     if (error) {
+      if (error.code === '23505') {
+        throw new Error('Presensi sesi ini pada tanggal ini sudah tersimpan. Tidak bisa absen dua kali.');
+      }
       throw new Error(`Gagal menyimpan presensi: ${error.message}`);
     }
 
