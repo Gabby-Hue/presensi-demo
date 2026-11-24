@@ -18,7 +18,8 @@ import { AttendanceService } from '../../services/attendanceService';
 import { ActivityRecord, fetchActivities, createActivity } from '../../services/activityService';
 import { todayWIB, getInitials } from '../../utils/dates';
 import { buildPayroll } from '../../utils/payroll';
-import { WorkShift } from '../../types/attendance';
+import { WorkShift, ShiftSwap } from '../../types/attendance';
+import { swapOverrides } from '../../utils/shifts';
 import {
   buildRekap,
   exportRekapCSV,
@@ -46,8 +47,19 @@ interface AdminDepartmentReportProps {
   companyId?: string;
 }
 
-export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ users, offices = [], companyId }) => {
+export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ users: rawUsers, offices = [], companyId }) => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  // Tukar shift yang disetujui menimpa jadwal per tanggal di rekap & payroll
+  const [approvedSwaps, setApprovedSwaps] = useState<ShiftSwap[]>([]);
+  useEffect(() => {
+    AttendanceService.getShiftSwaps({ companyId, status: ['approved'] })
+      .then(setApprovedSwaps)
+      .catch(() => setApprovedSwaps([]));
+  }, [companyId]);
+  const users = useMemo(
+    () => (approvedSwaps.length ? rawUsers.map((u) => ({ ...u, shiftOverrides: swapOverrides(approvedSwaps, u.id) })) : rawUsers),
+    [rawUsers, approvedSwaps]
+  );
   const [departmentList, setDepartmentList] = useState<string[]>([]);
   const [officeList, setOfficeList] = useState<OfficeSettings[]>(offices);
   const [shiftList, setShiftList] = useState<WorkShift[]>([]);

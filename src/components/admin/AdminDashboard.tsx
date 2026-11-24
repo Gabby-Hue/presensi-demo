@@ -25,6 +25,8 @@ import { AdminApprovalQueue } from './AdminApprovalQueue';
 import { AdminDepartmentReport } from './AdminDepartmentReport';
 import { AdminShiftManager } from './AdminShiftManager';
 import { NotificationBell } from '../ui/NotificationBell';
+import { AdminSwapApprovals } from './AdminSwapApprovals';
+import { AdminInsights } from './AdminInsights';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { succeed, fail, select, tap } from '../../services/feedbackService';
 import { Feather } from '@expo/vector-icons';
@@ -629,6 +631,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             attendances={todayAttendances}
             onSelectRecord={(rec) => setSelectedRecord(rec)}
           />
+
+          {/* Grafik kehadiran 7/14/30 hari */}
+          <AdminInsights currentAdmin={currentAdmin} users={users} offices={officeList} />
         </>
       )}
 
@@ -694,10 +699,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* 5. TAB PERSETUJUAN IZIN (HANYA ADMIN CABANG) */}
       {activeTab === 'approval' && !isSuper && (
-        <AdminApprovalQueue
-          requests={pendingApprovals}
-          onSelect={(rec) => setSelectedRecord(rec)}
-        />
+        <>
+          <AdminApprovalQueue
+            requests={pendingApprovals}
+            onSelect={(rec) => setSelectedRecord(rec)}
+          />
+          <AdminSwapApprovals currentAdmin={currentAdmin} users={users} />
+        </>
       )}
 
       {/* 6. TAB PT & ADMIN CABANG (HANYA SUPERADMIN) */}

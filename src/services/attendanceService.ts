@@ -9,6 +9,8 @@ import {
   SessionType,
   UserProfile,
   WorkShift,
+  ShiftSwap,
+  ShiftSwapStatus,
 } from '../types/attendance';
 import { getDeviceInfo } from './deviceService';
 import { todayWIB } from '../utils/dates';
@@ -56,6 +58,24 @@ function mapUser(u: any): UserProfile {
     shiftSchedule: u.shift_schedule || null,
     leaveQuota: u.leave_quota ?? null,
     workMinutes: u.work_minutes ?? null,
+  };
+}
+
+function mapSwap(s: any): ShiftSwap {
+  return {
+    id: String(s.id),
+    companyId: s.company_id ?? null,
+    department: s.department ?? null,
+    requesterId: String(s.requester_id),
+    partnerId: String(s.partner_id),
+    swapDate: String(s.swap_date).slice(0, 10),
+    requesterShiftId: s.requester_shift_id ?? null,
+    partnerShiftId: s.partner_shift_id ?? null,
+    note: s.note ?? null,
+    status: s.status,
+    decidedBy: s.decided_by ?? null,
+    decidedAt: s.decided_at ?? null,
+    createdAt: s.created_at,
   };
 }
 
@@ -1288,6 +1308,70 @@ export class AttendanceService {
       .single();
     if (error) throw new Error(error.message);
     return mapShift(data);
+  }
+
+  // ================= TUKAR SHIFT =================
+  /** Tukar shift perusahaan / karyawan. fromDate membatasi tanggal (default semua). */
+  static async getShiftSwaps(params: { companyId?: string | null; userId?: string; fromDate?: string; status?: ShiftSwapStatus[] }): Promise<ShiftSwap[]> {
+    let q = supabase.from('shift_swaps').select('*').order('swap_date', { ascending: false }).limit(500);
+    if (params.companyId) q = q.eq('company_id', params.companyId);
+    if (params.userId) q = q.or('requester_id.eq.' + params.userId + ',partner_id.eq.' + params.userId);
+    if (params.fromDate) q = q.gte('swap_date', params.fromDate);
+    if (params.status?.length) q = q.in('status', params.status);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return (data || []).map(mapSwap);
+  }
+
+  static async createShiftSwap(s: {
+    companyId?: string | null;
+    department?: string | null;
+    requesterId: string;
+    partnerId: string;
+    swapDate: string;
+    requesterShiftId: string | null;
+    partnerShiftId: string | null;
+    note?: string;
+  }): Promise<ShiftSwap> {
+    // Satu orang hanya boleh punya satu tukar shift aktif per tanggal
+    const { data: clash } = await supabase
+      .from('shift_swaps')
+      .select('id')
+      .eq('swap_date', s.swapDate)
+      .in('status', ['pending_partner', 'pending_admin', 'approved'])
+      .or(
+        'requester_id.in.(' + s.requesterId + ',' + s.partnerId + '),partner_id.in.(' + s.requesterId + ',' + s.partnerId + ')'
+      )
+      .limit(1);
+    if (clash && clash.length) throw new Error('Anda atau rekan sudah punya pengajuan tukar shift di tanggal ini.');
+    const { data, error } = await supabase
+      .from('shift_swaps')
+      .insert({
+        company_id: s.companyId || null,
+        department: s.department || null,
+        requester_id: s.requesterId,
+        partner_id: s.partnerId,
+        swap_date: s.swapDate,
+        requester_shift_id: s.requesterShiftId,
+        partner_shift_id: s.partnerShiftId,
+        note: s.note?.trim() || null,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return mapSwap(data);
+  }
+
+  /** Ubah status; hanya berhasil bila status sebelumnya masih `from` (cegah keputusan ganda). */
+  static async setShiftSwapStatus(id: string, from: ShiftSwapStatus, to: ShiftSwapStatus, decidedBy?: string): Promise<void> {
+    const patch: any = { status: to };
+    if (to === 'approved' || to === 'rejected') {
+      patch.decided_by = decidedBy || null;
+      patch.decided_at = new Date().toISOString();
+    }
+    const { data, error } = await supabase.from('shift_swaps').update(patch).eq('id', id).eq('status', from).select('id');
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) throw new Error('Pengajuan ini sudah diproses sebelumnya. Muat ulang halaman.');
   }
 
   static async updateShift(id: string, s: Pick<WorkShift, 'name' | 'startTime' | 'endTime' | 'lateDeadline'>): Promise<WorkShift> {

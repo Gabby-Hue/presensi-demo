@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -20,6 +20,7 @@ import {
   SessionType,
   UserProfile,
   WorkShift,
+  ShiftSwap,
 } from '../../types/attendance';
 import {
   calculateDistanceMeters,
@@ -43,7 +44,8 @@ import { AttendanceService } from '../../services/attendanceService';
 import { resolveMediaUrl } from '../../lib/api';
 import { succeed, fail, select } from '../../services/feedbackService';
 import { isWeekendDateString, isAfterTimeOfDay, todayWIB, getInitials } from '../../utils/dates';
-import { resolveWorkDay, isOvernight, isLateForShift, isClockOutOpenForShift } from '../../utils/shifts';
+import { resolveWorkDay, isOvernight, isLateForShift, isClockOutOpenForShift, swapOverrides } from '../../utils/shifts';
+import { ShiftSwapPanel } from './ShiftSwapPanel';
 import { NotificationBell } from '../ui/NotificationBell';
 import { addMinutes } from '../../utils/time';
 import { DEFAULT_LEAVE_QUOTA, leaveDaysUsed, lateMinutes, scheduleFor } from '../../utils/payroll';
@@ -169,6 +171,20 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
       alive = false;
     };
   }, [hasAnyShift, user.companyId]);
+
+  // Tukar shift yang melibatkan karyawan ini (yang disetujui menimpa jadwal pada tanggalnya)
+  const [mySwaps, setMySwaps] = useState<ShiftSwap[]>([]);
+  const loadSwaps = useCallback(() => {
+    if (!hasAnyShift) return setMySwaps([]);
+    const from = todayWIB(new Date(Date.now() - 40 * 86400e3));
+    AttendanceService.getShiftSwaps({ userId: user.id, fromDate: from })
+      .then(setMySwaps)
+      .catch(() => setMySwaps([]));
+  }, [hasAnyShift, user.id]);
+  useEffect(() => {
+    loadSwaps();
+  }, [loadSwaps]);
+  const schedUser = useMemo(() => ({ ...user, shiftOverrides: swapOverrides(mySwaps, user.id) }), [user, mySwaps]);
   const [nearestOffice, setNearestOffice] = useState<OfficeSettings | null>(offices[0] || null);
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number }>({
     latitude: offices[0]?.latitude ?? -7.23707,
@@ -368,10 +384,10 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const hasOpenSession = (date: string) =>
     userHistory.some((r) => r.date === date && r.sessionType === 'masuk') &&
     !userHistory.some((r) => r.date === date && r.sessionType === 'pulang');
-  const workDay = resolveWorkDay(user, companyShifts, currentTime, hasOpenSession);
+  const workDay = resolveWorkDay(schedUser, companyShifts, currentTime, hasOpenSession);
   const myShift = workDay.shift;
   const nightShift = myShift && isOvernight(myShift) ? myShift : null;
-  const sinceStart = (d: Date) => resolveWorkDay(user, companyShifts, d, hasOpenSession).minutesSinceStart ?? 0;
+  const sinceStart = (d: Date) => resolveWorkDay(schedUser, companyShifts, d, hasOpenSession).minutesSinceStart ?? 0;
 
   // Karyawan dengan shift memakai jam shift; selain itu jam kantor terdekat.
   const workStartStr = myShift?.startTime || nearestOffice?.workStartTime || '08:00';
@@ -420,7 +436,7 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const isTodayWeekend = isWeekendDateString(todayStr);
   const isTodayHoliday = isNationalHoliday(todayStr);
   // Shift yang dijadwalkan eksplisit di akhir pekan/libur = hari kerja biasa, bukan lembur.
-  const isLemburDay = !scheduleFor(user, todayStr, companyShifts).workday;
+  const isLemburDay = !scheduleFor(schedUser, todayStr, companyShifts).workday;
 
   // Status izin aktif hari ini (termasuk deteksi spesifik sesi setengah hari pagi / siang)
   const isHalfDayLeave = !!todayLeave?.reason && /setengah\s*hari/i.test(todayLeave.reason);
@@ -487,13 +503,13 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const onTimeCount = monthAllRecords.filter((r) => {
     if (r.sessionType !== 'masuk') return false;
     if (!r.clockInTime) return false;
-    return lateMinutes(r.clockInTime, r.date, scheduleFor(user, r.date, companyShifts, nearestOffice || undefined)) === 0;
+    return lateMinutes(r.clockInTime, r.date, scheduleFor(schedUser, r.date, companyShifts, nearestOffice || undefined)) === 0;
   }).length;
 
   const lateCount = monthAllRecords.filter((r) => {
     if (r.sessionType !== 'masuk') return false;
     if (!r.clockInTime) return false;
-    return lateMinutes(r.clockInTime, r.date, scheduleFor(user, r.date, companyShifts, nearestOffice || undefined)) > 0;
+    return lateMinutes(r.clockInTime, r.date, scheduleFor(schedUser, r.date, companyShifts, nearestOffice || undefined)) > 0;
   }).length;
 
   const leaveCount = monthAllRecords.filter((r) => {
@@ -1642,6 +1658,10 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             <Text style={styles.date}>Pantau status izin, sakit, izin telat, dan penugasan lembur dari admin cabang</Text>
           </View>
         </View>
+
+        {hasAnyShift && (
+          <ShiftSwapPanel user={user} shifts={companyShifts} swaps={mySwaps} onChanged={loadSwaps} />
+        )}
 
         {/* Dropdown Kategori Pengajuan (Izin, Sakit, Izin Telat, Lembur — Tanpa Opsi Semua) */}
         <View style={styles.dropdownSectionWrap}>

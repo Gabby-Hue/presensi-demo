@@ -17,7 +17,10 @@ export interface DaySchedule {
   workday: boolean;
 }
 
-type ShiftUser = Pick<UserProfile, 'shiftId' | 'shiftSchedule'> & { workMinutes?: number | null };
+type ShiftUser = Pick<UserProfile, 'shiftId' | 'shiftSchedule'> & {
+  workMinutes?: number | null;
+  shiftOverrides?: Record<string, string | null>;
+};
 
 export function scheduleFor(
   user: ShiftUser,
@@ -29,7 +32,8 @@ export function scheduleFor(
   const found = (id && shifts.find((s) => s.id === id)) || null;
   const shift = found ? withWorkMinutes(found, user.workMinutes) : null;
   // Jadwal per hari yang eksplisit memasang shift di akhir pekan/libur = hari kerja biasa, bukan lembur.
-  const explicit = !!found && user.shiftSchedule?.[String(weekdayOf(date))] === found.id;
+  const explicit =
+    !!found && (user.shiftSchedule?.[String(weekdayOf(date))] === found.id || user.shiftOverrides?.[date] === found.id);
   const workday = explicit || (!isWeekendDateString(date) && !isNationalHoliday(date));
   if (shift) {
     return { name: shift.name, start: shift.startTime, end: shift.endTime, late: shift.lateDeadline, overnight: isOvernight(shift), workday };

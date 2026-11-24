@@ -2,7 +2,24 @@ import { UserProfile, WorkShift } from '../types/attendance';
 import { todayWIB } from './dates';
 import { addMinutes } from './time';
 
-type ShiftUser = Pick<UserProfile, 'shiftId' | 'shiftSchedule'> & { workMinutes?: number | null };
+type ShiftUser = Pick<UserProfile, 'shiftId' | 'shiftSchedule'> & {
+  workMinutes?: number | null;
+  shiftOverrides?: Record<string, string | null>;
+};
+
+/** Peta tanggal -> shift dari tukar shift yang disetujui untuk satu karyawan. */
+export function swapOverrides(
+  swaps: Array<{ status: string; swapDate: string; requesterId: string; partnerId: string; requesterShiftId?: string | null; partnerShiftId?: string | null }>,
+  userId: string
+): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  for (const s of swaps) {
+    if (s.status !== 'approved') continue;
+    if (s.requesterId === userId) out[s.swapDate] = s.partnerShiftId ?? null;
+    else if (s.partnerId === userId) out[s.swapDate] = s.requesterShiftId ?? null;
+  }
+  return out;
+}
 
 /** Lama kerja khusus (mis. satpam 12 jam): jam pulang = jam masuk + workMinutes, jam masuk & batas telat tetap. */
 export function withWorkMinutes(s: WorkShift, workMinutes?: number | null): WorkShift {
@@ -34,10 +51,16 @@ export function weekdayOf(dateStr: string): number {
  * yang sudah dihapus diabaikan (kembali ke shift tetap).
  */
 export function shiftIdFor(
-  user: Pick<UserProfile, 'shiftId' | 'shiftSchedule'>,
+  user: Pick<UserProfile, 'shiftId' | 'shiftSchedule'> & { shiftOverrides?: Record<string, string | null> },
   dateStr: string,
   shifts?: WorkShift[]
 ): string | null {
+  // Tukar shift yang disetujui menimpa jadwal pada tanggal itu
+  const ov = user.shiftOverrides;
+  if (ov && dateStr in ov) {
+    const v = ov[dateStr];
+    if (v && (!shifts || shifts.some((s) => s.id === v))) return v;
+  }
   const key = String(weekdayOf(dateStr));
   const sched = user.shiftSchedule;
   if (sched && key in sched) {

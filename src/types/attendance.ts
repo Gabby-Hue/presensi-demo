@@ -45,6 +45,26 @@ export interface UserProfile {
   leaveQuota?: number | null;
   /** Lama kerja khusus dalam menit (mis. 600 = 10 jam). Kosong = ikut shift / jam kantor. */
   workMinutes?: number | null;
+  /** (hanya di aplikasi) shift per tanggal dari tukar shift yang disetujui: tanggal -> id shift. */
+  shiftOverrides?: Record<string, string | null>;
+}
+
+export type ShiftSwapStatus = 'pending_partner' | 'pending_admin' | 'approved' | 'rejected' | 'cancelled';
+
+export interface ShiftSwap {
+  id: string;
+  companyId?: string | null;
+  department?: string | null;
+  requesterId: string;
+  partnerId: string;
+  swapDate: string; // YYYY-MM-DD
+  requesterShiftId?: string | null;
+  partnerShiftId?: string | null;
+  note?: string | null;
+  status: ShiftSwapStatus;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
 }
 
 export interface WorkShift {
