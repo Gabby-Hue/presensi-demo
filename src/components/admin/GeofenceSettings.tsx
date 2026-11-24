@@ -10,6 +10,8 @@ import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, radius, spacing } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
 import { formatTimeInput, startTimeChange } from '../../utils/time';
+import { SelectDropdown } from '../ui/SelectDropdown';
+import { AttendanceService } from '../../services/attendanceService';
 
 interface OfficeManagerProps {
   offices: OfficeSettings[];
@@ -39,7 +41,17 @@ interface OfficeManagerProps {
     }
   ) => Promise<{ success: boolean; message: string }>;
   onDelete: (id: string) => Promise<{ success: boolean; message: string }>;
+  /** Perusahaan admin, untuk pengaturan batas absen masuk lebih awal. */
+  companyId?: string;
 }
+
+const EARLY_OPTIONS = [
+  { value: '15', label: '15 menit sebelum jam masuk' },
+  { value: '30', label: '30 menit sebelum jam masuk' },
+  { value: '60', label: '1 jam sebelum jam masuk' },
+  { value: '120', label: '2 jam sebelum jam masuk' },
+  { value: 'none', label: 'Tanpa batas' },
+];
 
 const EMPTY_FORM = {
   officeName: '',
@@ -68,11 +80,32 @@ function normalizeTimeString(t?: string): string | null {
 }
 
 export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
+  companyId,
   offices,
   onAdd,
   onUpdate,
   onDelete,
 }) => {
+  const [earlyValue, setEarlyValue] = useState('30');
+  const [earlyMsg, setEarlyMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    AttendanceService.getEarlyCheckinMinutes(companyId)
+      .then((m) => setEarlyValue(m == null ? 'none' : String(m)))
+      .catch(() => {});
+  }, [companyId]);
+  const saveEarly = async (v: string) => {
+    const prev = earlyValue;
+    setEarlyValue(v);
+    setEarlyMsg(null);
+    if (!companyId) return setEarlyMsg({ ok: false, text: 'Akun admin belum terhubung ke perusahaan.' });
+    try {
+      await AttendanceService.setEarlyCheckinMinutes(companyId, v === 'none' ? null : Number(v));
+      setEarlyMsg({ ok: true, text: 'Tersimpan.' });
+    } catch (e: any) {
+      setEarlyValue(prev);
+      setEarlyMsg({ ok: false, text: 'Gagal menyimpan: ' + (e?.message || e) });
+    }
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(offices.length === 0);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -560,6 +593,19 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
             />
           </View>
         </View>
+
+        <Text style={[styles.globalHoursLabel, { marginTop: 14, marginBottom: 6 }]}>Absen masuk paling awal</Text>
+        <SelectDropdown
+          options={EARLY_OPTIONS}
+          value={earlyValue}
+          onChange={saveEarly}
+          icon="unlock"
+          accessibilityLabel="Absen masuk paling awal"
+        />
+        <Text style={{ fontSize: 11, marginTop: 4, color: earlyMsg && !earlyMsg.ok ? colors.danger : colors.muted }}>
+          {earlyMsg?.text ||
+            'Berlaku untuk jam kantor dan semua shift. Contoh: jam masuk 08:00 dengan batas 30 menit, absen dibuka 07:30. Lembur di hari libur tidak dibatasi.'}
+        </Text>
 
         <View style={{ marginTop: 14, flexDirection: 'row', justifyContent: 'flex-end' }}>
           <Button

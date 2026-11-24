@@ -147,6 +147,13 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const [place, setPlace] = useState<'kantor' | 'luar'>('kantor');
   const [currentDistance, setCurrentDistance] = useState<number | null>(null);
   const [companyShifts, setCompanyShifts] = useState<WorkShift[]>([]);
+  // Absen masuk paling cepat N menit sebelum jam masuk (diatur admin, default 30)
+  const [earlyMin, setEarlyMin] = useState<number | null>(30);
+  useEffect(() => {
+    AttendanceService.getEarlyCheckinMinutes(user.companyId)
+      .then(setEarlyMin)
+      .catch(() => setEarlyMin(30));
+  }, [user.companyId]);
   const hasAnyShift = !!user.shiftId || Object.keys(user.shiftSchedule || {}).length > 0;
 
   useEffect(() => {
@@ -375,6 +382,15 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   const lateDeadStr = myShift?.lateDeadline || nearestOffice?.lateDeadline || '10:00';
 
   const { h: lateH, m: lateM } = parseHourMinute(lateDeadStr, 10, 0);
+
+  // Menit sejak jam masuk (negatif = belum jam masuk), WIB
+  const minutesFromStart = (d: Date) => {
+    if (myShift) return sinceStart(d);
+    const w = new Date(d.getTime() + 7 * 3600e3);
+    const { h, m } = parseHourMinute(workStartStr, 8, 0);
+    return w.getUTCHours() * 60 + w.getUTCMinutes() - (h * 60 + m);
+  };
+  const checkInOpensAt = earlyMin != null ? addMinutes(workStartStr, -earlyMin) : null;
   const { h: endH, m: endM } = parseHourMinute(workEndStr, 17, 0);
 
   // ---- Data untuk tombol & logs (sesi masuk, pulang, dan izin) ----
@@ -430,6 +446,11 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     : isHalfDayPagi && isLeaveApproved
     ? isAfterTimeOfDay(currentTime, 13, 0)
     : isAfterTimeOfDay(currentTime, lateH, lateM);
+
+  // Absen masuk terlalu awal (lembur di hari libur tidak dibatasi)
+  const isTooEarlyCheckIn = (d: Date) =>
+    !isLemburDay && earlyMin != null && !todayMasuk && minutesFromStart(d) < -earlyMin;
+  const tooEarlyNow = isTooEarlyCheckIn(currentTime);
 
   // Aturan jam pulang: lembur weekend/libur dibuka begitu sudah masuk; hari biasa ikuti jam kantor atau izin siang
   const isClockOutUnlocked = isLemburDay
@@ -613,6 +634,16 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
         title: 'Presensi Masuk Selesai',
         message: `Presensi masuk Anda untuk hari ini sudah tersimpan pada jam ${formatLogTime(todayMasuk.clockInTime)} WIB.`,
         icon: 'check-circle',
+        variant: 'primary',
+        confirmText: 'Mengerti',
+      });
+      return;
+    }
+    if (targetMode === 'masuk' && isTooEarlyCheckIn(new Date())) {
+      openAppDialog({
+        title: 'Belum Waktunya Absen Masuk',
+        message: 'Absen masuk dibuka pukul ' + checkInOpensAt + ' WIB (' + earlyMin + ' menit sebelum jam masuk ' + workStartStr + ' WIB).',
+        icon: 'clock',
         variant: 'primary',
         confirmText: 'Mengerti',
       });
@@ -1354,6 +1385,10 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
                 <View style={styles.donePillTag}>
                   <Text style={styles.donePillTagText}>Terekan</Text>
                 </View>
+              ) : tooEarlyNow ? (
+                <View style={styles.lockPillTag}>
+                  <Text style={styles.lockPillTagText}>Kunci</Text>
+                </View>
               ) : null}
             </View>
 
@@ -1364,6 +1399,8 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
                   ? `✓ Jam ${formatLogTime(todayMasuk.clockInTime)} WIB`
                   : isLemburDay
                   ? 'Presensi Lembur'
+                  : tooEarlyNow
+                  ? 'Buka ' + checkInOpensAt + ' WIB'
                   : 'Presensi Pagi'}
               </Text>
             </View>

@@ -1312,6 +1312,19 @@ export class AttendanceService {
     if (error) throw error;
   }
 
+  /** Batas absen masuk lebih awal (menit sebelum jam masuk). null = tanpa batas. Default 30. */
+  static async getEarlyCheckinMinutes(companyId?: string | null): Promise<number | null> {
+    if (!companyId) return 30;
+    const { data, error } = await supabase.from('companies').select('early_checkin_minutes').eq('id', companyId).maybeSingle();
+    if (error || !data) return 30;
+    return data.early_checkin_minutes ?? null;
+  }
+
+  static async setEarlyCheckinMinutes(companyId: string, minutes: number | null): Promise<void> {
+    const { error } = await supabase.from('companies').update({ early_checkin_minutes: minutes }).eq('id', companyId);
+    if (error) throw error;
+  }
+
   static async setUserWorkMinutes(userId: string, minutes: number | null): Promise<void> {
     const { error } = await supabase.from('profiles').update({ work_minutes: minutes }).eq('id', userId);
     if (error) throw error;

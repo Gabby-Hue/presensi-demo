@@ -644,6 +644,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* 3. TAB TITIK & RADIUS GEOFENCE (HANYA ADMIN CABANG) */}
       {activeTab === 'geofence' && !isSuper && (
         <GeofenceSettings
+          companyId={currentAdmin.companyId || undefined}
           offices={officeList}
           onAdd={async (params) => {
             const res = await AttendanceService.addOffice({
