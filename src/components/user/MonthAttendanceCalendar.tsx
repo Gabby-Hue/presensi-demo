@@ -10,7 +10,9 @@ import { colors, fontSize, radius, spacing } from '../../theme';
 import { select } from '../../services/feedbackService';
 import { isNationalHoliday, getHolidayName } from '../../utils/holidays';
 
-export type DayStatus = 'lengkap' | 'lengkap_izin' | 'satu_sesi' | 'izin' | 'menunggu' | 'libur' | 'absen' | 'akan_datang' | 'hari_ini_kosong' | 'belum_bergabung';
+export type DayStatus =
+  | 'lengkap' | 'telat' | 'lengkap_izin' | 'satu_sesi' | 'izin' | 'sakit' | 'lembur'
+  | 'menunggu' | 'libur' | 'absen' | 'akan_datang' | 'hari_ini_kosong' | 'belum_bergabung';
 
 export interface DayInfo {
   hasMasuk: boolean;
@@ -18,7 +20,27 @@ export interface DayInfo {
   hasIzin: boolean;
   hasHalfDayLeave: boolean;
   hasPending: boolean;
+  /** Absen masuk melewati batas telat (dicatat saat absen) atau izin telat disetujui. */
+  isLate?: boolean;
+  /** Izin yang disetujui berupa sakit. */
+  hasSakit?: boolean;
 }
+
+const emptyInfo = (): DayInfo => ({ hasMasuk: false, hasPulang: false, hasIzin: false, hasHalfDayLeave: false, hasPending: false });
+const isSickRecord = (r: AttendanceRecord) => r.status === 'sakit' || !!r.reason?.includes('[SAKIT');
+
+/** Palet status kalender (dipakai tile, legenda, dan ringkasan). */
+export const DAY_PALETTE = {
+  lengkap: { bg: colors.primary, text: '#FFFFFF' },
+  telat: { bg: '#EA580C', text: '#FFFFFF' },
+  satu_sesi: { bg: '#FACC15', text: '#713F12' },
+  izin: { bg: '#7C3AED', text: '#FFFFFF' },
+  sakit: { bg: '#DB2777', text: '#FFFFFF' },
+  lembur: { bg: '#0D9488', text: '#FFFFFF' },
+  libur: { bg: '#FEE2E2', text: '#B91C1C' },
+  absen: { bg: '#64748B', text: '#FFFFFF' },
+  menunggu: { bg: '#FFFFFF', text: '#6D28D9', border: '#8B5CF6' },
+};
 
 export const buildAttendanceMap = (
   attendances: AttendanceRecord[],
@@ -43,13 +65,12 @@ export const buildAttendanceMap = (
           for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
             const dateStr = `${year}-${pad(month + 1)}-${pad(dayNum)}`;
             if (dateStr >= sDate && dateStr <= eDate) {
-              if (!map[dayNum]) {
-                map[dayNum] = { hasMasuk: false, hasPulang: false, hasIzin: false, hasHalfDayLeave: false, hasPending: false };
-              }
+              if (!map[dayNum]) map[dayNum] = emptyInfo();
               if (record.approvalStatus === 'pending') {
                 map[dayNum].hasPending = true;
               } else if (record.approvalStatus === 'approved') {
                 map[dayNum].hasIzin = true;
+                if (isSickRecord(record)) map[dayNum].hasSakit = true;
                 if (isHalf) map[dayNum].hasHalfDayLeave = true;
               }
             }
@@ -57,6 +78,17 @@ export const buildAttendanceMap = (
         }
         return; // Selesai memproses izin
       }
+      // Izin telat yang disetujui: tandai hari itu terlambat (tanggal = tanggal izin telat)
+      if (isTelat && record.approvalStatus === 'approved') {
+        const dStr = (record.startDate || record.date || '').slice(0, 10);
+        const [yy, mm, dd] = dStr.split('-').map(Number);
+        if (yy === year && mm - 1 === month && dd >= 1 && dd <= daysInMonth) {
+          if (!map[dd]) map[dd] = emptyInfo();
+          map[dd].isLate = true;
+        }
+        return;
+      }
+      if (isTelat) return;
     }
 
     // 2. Tangani presensi harian (Masuk, Pulang, atau Lembur)
@@ -76,8 +108,12 @@ export const buildAttendanceMap = (
       d = rd.getDate();
     }
     if (y === year && m === month && d >= 1 && d <= daysInMonth) {
-      if (!map[d]) map[d] = { hasMasuk: false, hasPulang: false, hasIzin: false, hasHalfDayLeave: false, hasPending: false };
-      if (record.sessionType === 'masuk') map[d].hasMasuk = true;
+      if (!map[d]) map[d] = emptyInfo();
+      if (record.sessionType === 'masuk') {
+        map[d].hasMasuk = true;
+        // Alasan "Terlambat (> HH:MM WIB)" ditulis saat absen masuk memakai jadwal/shift saat itu.
+        if (/terlambat/i.test(record.reason || '')) map[d].isLate = true;
+      }
       if (record.sessionType === 'pulang') map[d].hasPulang = true;
     }
   });
@@ -92,18 +128,18 @@ export const getDayStatus = (
   isHoliday = false,
   isBeforeJoin = false
 ): DayStatus => {
-  // Jika ada izin (terutama setengah hari) dan juga ada presensi (lengkap atau 1 sesi):
-  // Dianggap sebagai hari kerja Lengkap dengan aksen border merah izin
-  if (info?.hasIzin && info?.hasMasuk && info?.hasPulang) return 'lengkap_izin';
-  if (info?.hasHalfDayLeave && (info?.hasMasuk || info?.hasPulang)) return 'lengkap_izin';
-  if (info?.hasIzin && (info?.hasMasuk || info?.hasPulang)) return 'lengkap_izin';
+  const worked = !!(info?.hasMasuk || info?.hasPulang);
+  // Masuk kerja di akhir pekan / libur nasional = lembur
+  if (worked && (isWeekend || isHoliday)) return 'lembur';
+  // Hadir + izin (umumnya setengah hari): tile dibagi dua (hadir + izin)
+  if (info?.hasIzin && worked) return 'lengkap_izin';
 
   // Presensi murni tanpa izin
-  if (info?.hasMasuk && info?.hasPulang) return 'lengkap';
-  if (info?.hasMasuk || info?.hasPulang) return 'satu_sesi';
+  if (info?.hasMasuk && info?.hasPulang) return info.isLate ? 'telat' : 'lengkap';
+  if (worked) return 'satu_sesi';
 
   // Izin murni (seharian penuh tanpa presensi)
-  if (info?.hasIzin) return 'izin';
+  if (info?.hasIzin) return info.hasSakit ? 'sakit' : 'izin';
   if (info?.hasPending) return 'menunggu';
   if (!info && (isWeekend || isHoliday)) return 'libur';
   if (isBeforeJoin && !info) return 'belum_bergabung';
@@ -122,6 +158,26 @@ interface MonthAttendanceCalendarProps {
   showNav?: boolean;
   userCreatedAt?: string;
 }
+
+const STATUS_LABEL: Record<DayStatus, string> = {
+  lengkap: 'hadir tepat waktu', telat: 'terlambat', lengkap_izin: 'hadir dan izin setengah hari',
+  satu_sesi: 'baru satu sesi', izin: 'izin', sakit: 'sakit', lembur: 'lembur', menunggu: 'izin menunggu persetujuan',
+  libur: 'libur', absen: 'alpa', akan_datang: '', hari_ini_kosong: 'hari ini, belum absen', belum_bergabung: 'belum bergabung',
+};
+
+const LEGEND: Array<{ label: string; bg?: string; border?: string; split?: boolean; clock?: boolean }> = [
+  { label: 'Tepat waktu', bg: DAY_PALETTE.lengkap.bg },
+  { label: 'Terlambat', bg: DAY_PALETTE.telat.bg },
+  { label: 'Tanda telat', clock: true },
+  { label: '1 Sesi', bg: DAY_PALETTE.satu_sesi.bg },
+  { label: 'Izin', bg: DAY_PALETTE.izin.bg },
+  { label: 'Sakit', bg: DAY_PALETTE.sakit.bg },
+  { label: 'Hadir + izin setengah hari', split: true },
+  { label: 'Menunggu', bg: '#FFFFFF', border: DAY_PALETTE.menunggu.border },
+  { label: 'Lembur', bg: DAY_PALETTE.lembur.bg },
+  { label: 'Libur', bg: '#FCA5A5' },
+  { label: 'Alpa', bg: DAY_PALETTE.absen.bg },
+];
 
 const monthNames = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -192,8 +248,10 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
   // TIDAK dihitung sebagai alpa/absen.
   const monthStats = useMemo(() => {
     let hadir = 0;
+    let telat = 0;
     let satuSesi = 0;
     let izin = 0;
+    let sakit = 0;
     let alpa = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const info = attendanceMap[d];
@@ -206,11 +264,13 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
       const isBeforeJoin = Boolean(userJoinDateKey && dateKey < userJoinDateKey);
       const st = getDayStatus(info, isPast, isToday, isWeekend, isHoliday, isBeforeJoin);
       if (st === 'lengkap' || st === 'lengkap_izin') hadir++;
+      else if (st === 'telat') telat++;
       else if (st === 'satu_sesi') satuSesi++;
       else if (st === 'izin') izin++;
+      else if (st === 'sakit') sakit++;
       else if (st === 'absen') alpa++;
     }
-    return { hadir, satuSesi, izin, alpa };
+    return { hadir, telat, satuSesi, izin, sakit, alpa };
   }, [attendanceMap, daysInMonth, isPastMonth, isCurrentMonth, todayDate, year, month, userJoinDateKey]);
 
   // Skema warna asli PresensiPro:
@@ -228,27 +288,23 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
     const isBeforeJoin = Boolean(userJoinDateKey && dateKey < userJoinDateKey);
     const status = getDayStatus(info, isPast, isToday, isWeekend, isHoliday, isBeforeJoin);
 
+    const late = !!info?.isLate;
+    const base: { isToday: boolean; isHoliday: boolean; late: boolean; split: boolean; dashed: boolean; status: DayStatus; border?: string; borderWidth?: number } =
+      { isToday, isHoliday, late, split: false, dashed: false, status };
     switch (status) {
       case 'belum_bergabung':
-        return { bg: colors.surfaceSoft, text: colors.faint, border: colors.border, borderWidth: 1, isToday: false, isHoliday: false };
-      case 'izin':
-        return { bg: '#FFFFFF', text: colors.izin, border: colors.izin, borderWidth: 3.5, isToday, isHoliday };
+        return { ...base, bg: colors.surfaceSoft, text: colors.faint, border: colors.border, borderWidth: 1, isToday: false, isHoliday: false };
       case 'lengkap_izin':
-        return { bg: colors.primary, text: '#FFFFFF', border: colors.izin, borderWidth: 3.5, isToday, isHoliday };
+        // atas = hadir (oranye bila telat), bawah = izin
+        return { ...base, bg: late ? DAY_PALETTE.telat.bg : DAY_PALETTE.lengkap.bg, text: '#FFFFFF', split: true };
       case 'menunggu':
-        return { bg: '#FFFFFF', text: '#B45309', border: '#F59E0B', borderWidth: 2, isToday, isHoliday };
-      case 'libur':
-        return { bg: colors.izin, text: '#FFFFFF', isToday, isHoliday };
-      case 'lengkap':
-        return { bg: colors.primary, text: '#FFFFFF', isToday, isHoliday };
-      case 'satu_sesi':
-        return { bg: '#F59E0B', text: '#FFFFFF', isToday, isHoliday };
-      case 'absen':
-        return { bg: '#64748B', text: '#FFFFFF', isToday, isHoliday };
+        return { ...base, bg: DAY_PALETTE.menunggu.bg, text: DAY_PALETTE.menunggu.text, border: DAY_PALETTE.menunggu.border, borderWidth: 2, dashed: true };
       case 'hari_ini_kosong':
-        return { bg: '#FFFFFF', text: colors.primary, border: colors.primary, borderWidth: 2, isToday, isHoliday };
+        return { ...base, bg: '#FFFFFF', text: colors.primary, border: colors.primary, borderWidth: 2 };
+      case 'akan_datang':
+        return { ...base, bg: '#E8F0FE', text: '#64748B', isToday: false };
       default:
-        return { bg: '#E8F0FE', text: '#64748B', isToday: false, isHoliday };
+        return { ...base, ...DAY_PALETTE[status] };
     }
   };
 
@@ -308,22 +364,20 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
 
       {/* 2. Shadcn Monthly Stat Summary Chips */}
       <View style={styles.statSummaryGrid}>
-        <View style={styles.statChip}>
-          <Text style={styles.statChipLabel}>Lengkap</Text>
-          <Text style={[styles.statChipValue, { color: colors.primary }]}>{monthStats.hadir}</Text>
-        </View>
-        <View style={styles.statChip}>
-          <Text style={styles.statChipLabel}>1 Sesi</Text>
-          <Text style={[styles.statChipValue, { color: '#D97706' }]}>{monthStats.satuSesi}</Text>
-        </View>
-        <View style={styles.statChip}>
-          <Text style={styles.statChipLabel}>Izin/Sakit</Text>
-          <Text style={[styles.statChipValue, { color: colors.izin }]}>{monthStats.izin}</Text>
-        </View>
-        <View style={styles.statChip}>
-          <Text style={styles.statChipLabel}>Alpa</Text>
-          <Text style={[styles.statChipValue, { color: colors.muted }]}>{monthStats.alpa}</Text>
-        </View>
+        {([
+          ['Tepat', monthStats.hadir, DAY_PALETTE.lengkap.bg],
+          ['Telat', monthStats.telat, DAY_PALETTE.telat.bg],
+          ['1 Sesi', monthStats.satuSesi, '#A16207'],
+          ['Izin', monthStats.izin, DAY_PALETTE.izin.bg],
+          ['Sakit', monthStats.sakit, DAY_PALETTE.sakit.bg],
+          ['Alpa', monthStats.alpa, DAY_PALETTE.absen.bg],
+        ] as const).map(([label, value, color]) => (
+          <View key={label} style={styles.statChip}>
+            <View style={[styles.statChipBar, { backgroundColor: color }]} />
+            <Text style={styles.statChipLabel}>{label}</Text>
+            <Text style={[styles.statChipValue, { color }]}>{value}</Text>
+          </View>
+        ))}
       </View>
 
       {/* 3. Weekday Columns */}
@@ -359,18 +413,27 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
                   select();
                   onSelectDay?.(cell.day!);
                 }}
+                accessibilityLabel={cell.day + ' ' + STATUS_LABEL[c.status] + (c.late && c.status !== 'telat' ? ', terlambat' : '')}
                 style={[
                   styles.dayTile,
                   {
                     backgroundColor: c.bg,
                     borderColor: isSelected ? colors.ink : c.border || 'transparent',
-                    borderWidth: isSelected ? 3.5 : (c.borderWidth !== undefined ? c.borderWidth : (c.border ? 3.5 : 0)),
+                    borderWidth: isSelected ? 3 : (c.borderWidth ?? 0),
+                    borderStyle: c.dashed && !isSelected ? 'dashed' : 'solid',
                   },
                 ]}
               >
+                {c.split && <View style={[styles.splitBottom, { backgroundColor: DAY_PALETTE.izin.bg }]} />}
                 <Text style={[styles.dayTileText, { color: c.text }]}>
                   {cell.day}
                 </Text>
+                {c.late && (
+                  <View style={styles.lateMark}>
+                    <Feather name="clock" size={9} color="#EA580C" />
+                  </View>
+                )}
+                {c.isToday && <View style={[styles.todayDot, { backgroundColor: c.text }]} />}
               </TouchableOpacity>
             </View>
           );
@@ -380,34 +443,20 @@ export const MonthAttendanceCalendar: React.FC<MonthAttendanceCalendarProps> = (
       {/* 5. Clean Semantic Status Legend */}
       <View style={styles.legendContainer}>
         <View style={styles.legendRow}>
-          <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-            <Text style={styles.legendLabel}>Lengkap</Text>
-          </View>
-          <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: colors.primary, borderColor: colors.izin, borderWidth: 2.5 }]} />
-            <Text style={styles.legendLabel}>Lengkap (Izin Setengah Hari)</Text>
-          </View>
-          <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-            <Text style={styles.legendLabel}>1 Sesi</Text>
-          </View>
-          <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: '#FFFFFF', borderColor: colors.izin, borderWidth: 2.5 }]} />
-            <Text style={styles.legendLabel}>Izin/Sakit</Text>
-          </View>
-          <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: '#FFFFFF', borderColor: '#F59E0B', borderWidth: 1.5 }]} />
-            <Text style={styles.legendLabel}>Menunggu</Text>
-          </View>
-          <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: colors.izin }]} />
-            <Text style={styles.legendLabel}>Libur</Text>
-          </View>
-          <View style={styles.legendPill}>
-            <View style={[styles.legendDot, { backgroundColor: '#64748B' }]} />
-            <Text style={styles.legendLabel}>Alpa</Text>
-          </View>
+          {LEGEND.map((l) => (
+            <View key={l.label} style={styles.legendPill}>
+              {l.split ? (
+                <View style={[styles.legendDot, { backgroundColor: DAY_PALETTE.lengkap.bg, overflow: 'hidden' }]}>
+                  <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%', backgroundColor: DAY_PALETTE.izin.bg }} />
+                </View>
+              ) : l.clock ? (
+                <Feather name="clock" size={11} color="#EA580C" />
+              ) : (
+                <View style={[styles.legendDot, { backgroundColor: l.bg }, l.border ? { borderWidth: 1.5, borderColor: l.border, borderStyle: 'dashed' } : null]} />
+              )}
+              <Text style={styles.legendLabel}>{l.label}</Text>
+            </View>
+          ))}
         </View>
       </View>
     </View>
@@ -483,11 +532,21 @@ const styles = StyleSheet.create({
   // Stat Summary Strip (Shadcn style)
   statSummaryGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6,
     marginBottom: spacing.sm,
   },
+  statChipBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 3,
+  },
   statChip: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '30%',
+    overflow: 'hidden',
     backgroundColor: colors.surfaceSoft,
     borderRadius: radius.md,
     paddingVertical: 6,
@@ -542,6 +601,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  splitBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '50%',
+  },
+  lateMark: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  todayDot: {
+    position: 'absolute',
+    bottom: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
   dayTileText: {
     fontSize: 13,

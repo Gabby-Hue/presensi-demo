@@ -100,14 +100,16 @@ export const AdminEmployeeRecap: React.FC<AdminEmployeeRecapProps> = ({
       const isPast = isPastMonth || (isCurrent && d < now.getDate());
       const isToday = isCurrent && d === now.getDate();
       const weekday = new Date(year, month, d).getDay();
-      const st = getDayStatus(map[d], isPast, isToday, weekday === 0 || weekday === 6);
+      const dk = monthKey + '-' + String(d).padStart(2, '0');
+      const st = getDayStatus(map[d], isPast, isToday, weekday === 0 || weekday === 6, isNationalHoliday(dk));
       // Hari yang akan datang & hari ini yang masih kosong tidak dihitung
       if (st === 'akan_datang' || st === 'hari_ini_kosong') continue;
-      if (st !== 'libur') terhitung++;
-      if (st === 'lengkap' || st === 'lengkap_izin') lengkap++;
+      // lembur = masuk di hari libur, tidak menambah hari wajib
+      if (st !== 'libur' && st !== 'lembur') terhitung++;
+      if (st === 'lengkap' || st === 'lengkap_izin' || st === 'telat') lengkap++;
       else if (st === 'satu_sesi') satuSesi++;
-      else if (st === 'izin') izin++;
-      else if (st === 'libur') libur++;
+      else if (st === 'izin' || st === 'sakit') izin++;
+      else if (st === 'libur' || st === 'lembur') libur++;
       else if (st === 'absen') tanpaKabar++;
     }
     return { lengkap, satuSesi, izin, libur, tanpaKabar, persentase: terhitung ? Math.round(((lengkap + satuSesi) / terhitung) * 100) : 0 };
