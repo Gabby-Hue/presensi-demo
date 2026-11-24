@@ -24,6 +24,7 @@ import { AdminEmployeeRecap } from './AdminEmployeeRecap';
 import { AdminApprovalQueue } from './AdminApprovalQueue';
 import { AdminDepartmentReport } from './AdminDepartmentReport';
 import { AdminShiftManager } from './AdminShiftManager';
+import { NotificationBell } from '../ui/NotificationBell';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { succeed, fail, select, tap } from '../../services/feedbackService';
 import { Feather } from '@expo/vector-icons';
@@ -778,6 +779,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <Text style={styles.pageTitle}>{pageMeta.title}</Text>
                 <Text style={styles.pageSub}>{pageMeta.sub}</Text>
               </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <NotificationBell userId={currentAdmin.id} />
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={onPressProfile}
@@ -791,6 +794,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <Text style={styles.adminDept}>{currentAdmin.department || 'Admin'}</Text>
                 </View>
               </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView

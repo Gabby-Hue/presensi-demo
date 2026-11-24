@@ -1,0 +1,10 @@
+{
+  "name": "PresensiPro",
+  "short_name": "PresensiPro",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1C1917",
+  "icons": [{ "src": "/icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }]
+}

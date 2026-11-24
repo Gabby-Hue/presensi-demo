@@ -6,6 +6,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { UserProfile } from '../../types/attendance';
 import { colors, fontSize, radius, spacing } from '../../theme';
 import { getInitials } from '../../utils/dates';
+import { NotificationBell } from './NotificationBell';
 
 interface HeaderProps {
   user: UserProfile;
@@ -31,6 +32,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onPressProfile }) => {
         </View>
       </View>
 
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <NotificationBell userId={user.id} />
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={onPressProfile}
@@ -48,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onPressProfile }) => {
           </View>
         )}
       </TouchableOpacity>
+      </View>
     </View>
   );
 };

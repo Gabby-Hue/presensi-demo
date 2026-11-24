@@ -39,6 +39,7 @@ import {
   UserProfile,
 } from './src/types/attendance';
 import { AttendanceService } from './src/services/attendanceService';
+import { disablePush } from './src/services/notificationService';
 import { initFeedback } from './src/services/feedbackService';
 import { todayWIB } from './src/utils/dates';
 import { supabase } from './src/lib/supabase';
@@ -187,6 +188,8 @@ function AppContent() {
 
   const handleLogout = async () => {
     setLoading(true);
+    // HP bisa dipakai bergantian: jangan kirim notif akun ini ke perangkat setelah keluar.
+    await disablePush().catch(() => {});
     await AttendanceService.signOut();
     setCurrentUser(null);
     setShowProfilePage(false);

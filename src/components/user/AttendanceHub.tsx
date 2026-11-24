@@ -44,6 +44,7 @@ import { resolveMediaUrl } from '../../lib/api';
 import { succeed, fail, select } from '../../services/feedbackService';
 import { isWeekendDateString, isAfterTimeOfDay, todayWIB, getInitials } from '../../utils/dates';
 import { resolveWorkDay, isOvernight, isLateForShift, isClockOutOpenForShift } from '../../utils/shifts';
+import { NotificationBell } from '../ui/NotificationBell';
 import { DEFAULT_LEAVE_QUOTA, leaveDaysUsed, lateMinutes, scheduleFor } from '../../utils/payroll';
 import { getHolidayName, isNationalHoliday } from '../../utils/holidays';
 import { printAttendanceSlip } from '../../services/exportService';
@@ -1016,6 +1017,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
                 Selamat datang, {firstName}
               </Text>
             </View>
+            <NotificationBell userId={user.id} />
             <View style={styles.dateBadgeMini}>
               <Text style={styles.dateBadgeMiniText}>
                 {String(curHour).padStart(2, '0')}:{String(curMin).padStart(2, '0')} WIB
