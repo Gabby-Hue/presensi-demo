@@ -17,6 +17,7 @@ import { DepartmentDropdown } from '../ui/DepartmentDropdown';
 import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
+import { DEFAULT_LEAVE_QUOTA } from '../../utils/payroll';
 
 interface AdminEmployeeManagerProps {
   currentAdmin: UserProfile;
@@ -50,6 +51,7 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
   const [editName, setEditName] = useState('');
   const [editDept, setEditDept] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editQuota, setEditQuota] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [editSaving, setEditSaving] = useState(false);
@@ -114,6 +116,7 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
     setEditName(item.fullName);
     setEditDept(item.department || '');
     setEditPassword('');
+    setEditQuota(String(item.leaveQuota ?? DEFAULT_LEAVE_QUOTA));
     setShowEditPassword(false);
     setEditError(null);
   };
@@ -129,12 +132,18 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
       setEditError('Kata sandi baru minimal 6 karakter.');
       return;
     }
+    const quota = Number(editQuota.trim());
+    if (!/^\d{1,3}$/.test(editQuota.trim()) || quota > 365) {
+      setEditError('Kuota cuti harus angka 0 sampai 365 hari.');
+      return;
+    }
     setEditSaving(true);
     const { success, message } = await AttendanceService.updateEmployeeAccount({
       id: editing.id,
       fullName: editName.trim(),
       department: editDept.trim() || 'None',
       password: editPassword.trim() || undefined,
+      leaveQuota: quota,
     });
     setEditSaving(false);
     if (!success) {
@@ -376,6 +385,18 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
           onDepartmentsChange={setDepartments}
           placeholder="Pilih departemen"
         />
+        <Text style={[styles.label, { marginTop: 12 }]}>Kuota cuti per tahun (hari)</Text>
+        <TextInput
+          style={styles.input}
+          value={editQuota}
+          onChangeText={(t) => setEditQuota(t.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          maxLength={3}
+          placeholder={String(DEFAULT_LEAVE_QUOTA)}
+          placeholderTextColor={colors.faint}
+          accessibilityLabel="Kuota cuti per tahun"
+        />
+        <Text style={styles.hint}>Izin (bukan sakit) memotong kuota. Setengah hari = 0,5 hari.</Text>
         <Text style={[styles.label, { marginTop: 12 }]}>Ganti Kata Sandi (Opsional)</Text>
         <View style={styles.passwordWrap}>
           <TextInput

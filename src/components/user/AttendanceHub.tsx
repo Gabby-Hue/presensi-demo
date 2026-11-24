@@ -44,6 +44,7 @@ import { resolveMediaUrl } from '../../lib/api';
 import { succeed, fail, select } from '../../services/feedbackService';
 import { isWeekendDateString, isAfterTimeOfDay, todayWIB, getInitials } from '../../utils/dates';
 import { resolveWorkDay, isOvernight, isLateForShift, isClockOutOpenForShift } from '../../utils/shifts';
+import { DEFAULT_LEAVE_QUOTA, leaveDaysUsed, lateMinutes, scheduleFor } from '../../utils/payroll';
 import { getHolidayName, isNationalHoliday } from '../../utils/holidays';
 import { printAttendanceSlip } from '../../services/exportService';
 import { Feather } from '@expo/vector-icons';
@@ -393,7 +394,8 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   // Deteksi akhir pekan / hari libur nasional (otomatis mode lembur)
   const isTodayWeekend = isWeekendDateString(todayStr);
   const isTodayHoliday = isNationalHoliday(todayStr);
-  const isLemburDay = isTodayWeekend || isTodayHoliday;
+  // Shift yang dijadwalkan eksplisit di akhir pekan/libur = hari kerja biasa, bukan lembur.
+  const isLemburDay = !scheduleFor(user, todayStr, companyShifts).workday;
 
   // Status izin aktif hari ini (termasuk deteksi spesifik sesi setengah hari pagi / siang)
   const isHalfDayLeave = !!todayLeave?.reason && /setengah\s*hari/i.test(todayLeave.reason);
@@ -456,8 +458,8 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
 
   const onTimeCount = monthAllRecords.filter((r) => {
     if (r.sessionType !== 'masuk') return false;
-    const d = safeParseDate(r.clockInTime);
-    return d ? !isAfterTimeOfDay(d, lateH, lateM) : false;
+    if (!r.clockInTime) return false;
+    return lateMinutes(r.clockInTime, r.date, scheduleFor(user, r.date, companyShifts, nearestOffice || undefined)) === 0;
   }).length;
 
   const lateCount = monthAllRecords.filter((r) => {
@@ -1552,6 +1554,8 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             }}
             onBack={() => setLeaveViewMode('list')}
             loading={submitting}
+            leaveQuota={user.leaveQuota ?? DEFAULT_LEAVE_QUOTA}
+            leaveUsed={leaveDaysUsed(userHistory, user.id, Number(todayWIB().slice(0, 4)), true)}
           />
         </View>
       );

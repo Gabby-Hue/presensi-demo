@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { AttendanceRecord, OfficeSettings, UserProfile } from '../../types/attendance';
+import { AttendanceRecord, OfficeSettings, UserProfile, WorkShift } from '../../types/attendance';
 import { buildRekap, exportRekapCSV, exportRekapXLSX } from '../../services/exportService';
 import { todayWIB } from '../../utils/dates';
 import { colors, fontSize, neoShadow, radius, spacing } from '../../theme';
@@ -22,6 +22,7 @@ export interface AdminBackupModalProps {
   records: AttendanceRecord[];
   departments: string[];
   offices?: OfficeSettings[];
+  shifts?: WorkShift[];
   initialScope?: ScopeType;
   initialOffice?: string;
   initialDepartment?: string;
@@ -45,6 +46,7 @@ export const AdminBackupModal: React.FC<AdminBackupModalProps> = ({
   records,
   departments,
   offices = [],
+  shifts = [],
   initialScope,
   initialOffice,
   initialDepartment,
@@ -159,7 +161,7 @@ export const AdminBackupModal: React.FC<AdminBackupModalProps> = ({
   ]);
 
   const exportRows = useMemo(() => {
-    return buildRekap(filteredEmployees, filteredRecords);
+    return buildRekap(filteredEmployees, filteredRecords, undefined, { shifts, offices });
   }, [filteredEmployees, filteredRecords]);
 
   const searchedEmployees = useMemo(() => {

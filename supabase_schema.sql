@@ -389,3 +389,7 @@ CREATE POLICY "Shifts public access" ON public.shifts FOR ALL USING (true) WITH 
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS shift_id UUID REFERENCES public.shifts(id) ON DELETE SET NULL;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS shift_schedule JSONB; -- {"0".."6": shift_id | null}, hari tanpa kunci ikut shift_id
+
+-- Kuota cuti (izin, bukan sakit) per tahun dalam hari.
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS leave_quota INTEGER NOT NULL DEFAULT 12 CHECK (leave_quota BETWEEN 0 AND 365);

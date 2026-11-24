@@ -41,6 +41,8 @@ export interface UserProfile {
   shiftId?: string | null;
   /** Jadwal per hari ("0"=Minggu … "6"=Sabtu -> id shift / null jam kantor). Hari tanpa kunci ikut shiftId. */
   shiftSchedule?: Record<string, string | null> | null;
+  /** Jatah cuti (izin) per tahun dalam hari. Kosong = default 12. */
+  leaveQuota?: number | null;
 }
 
 export interface WorkShift {

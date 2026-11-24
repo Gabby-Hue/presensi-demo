@@ -4,6 +4,8 @@ import { AttendanceRecord, UserProfile } from '../types/attendance';
 import { isWeekendDateString } from '../utils/dates';
 import { getHolidayName, isNationalHoliday } from '../utils/holidays';
 import { resolveMediaUrl } from '../lib/api';
+import { OfficeSettings, WorkShift } from '../types/attendance';
+import { PayrollRow, lateMinutes, scheduleFor } from '../utils/payroll';
 
 const BLUE_FILL = { patternType: 'solid', fgColor: { rgb: 'FFDCEBFF' }, bgColor: { rgb: 'FFDCEBFF' } };
 const YELLOW_FILL = { patternType: 'solid', fgColor: { rgb: 'FFFFF3CD' }, bgColor: { rgb: 'FFFFF3CD' } };
@@ -55,12 +57,21 @@ export interface RekapRow {
   fotoMasuk: string;
   fotoPulang: string;
   dokumenIzin: string;
+  shift: string;
+  terlambat: string;
+}
+
+/** Data jadwal agar rekap bisa menampilkan shift & menit terlambat per tanggal. */
+export interface RekapContext {
+  shifts: WorkShift[];
+  offices: OfficeSettings[];
 }
 
 export function buildRekap(
   users: UserProfile[],
   records: AttendanceRecord[],
-  filter?: { department?: string; companyId?: string }
+  filter?: { department?: string; companyId?: string },
+  ctx?: RekapContext
 ): RekapRow[] {
   let staff = users.filter((u) => u.role === 'employee');
   if (filter?.department) staff = staff.filter((u) => u.department === filter.department);
@@ -133,6 +144,15 @@ export function buildRekap(
     const fotoPulang = resolveMediaUrl(pulang?.photoUrl) || '-';
     const dokumenIzin = resolveMediaUrl(izin?.documentUrl || telat?.documentUrl) || '-';
 
+    const office = ctx && (ctx.offices.find((o) => (o.companyId ?? null) === (u.companyId ?? null)) || ctx.offices[0]);
+    const sched = ctx ? scheduleFor(u, date, ctx.shifts, office) : null;
+    const lateMin = masuk && sched ? (sched.workday ? lateMinutes(masuk.clockInTime, date, sched) : 0) : null;
+    const terlambat = !masuk
+      ? '-'
+      : lateMin != null
+      ? (lateMin > 0 ? lateMin + ' mnt' : 'Tepat waktu')
+      : /terlambat/i.test(masuk.reason || '') ? 'Ya' : 'Tidak';
+
     rows.push({
       nama: u.fullName,
       departemen: u.department || 'General',
@@ -150,6 +170,8 @@ export function buildRekap(
       fotoMasuk,
       fotoPulang,
       dokumenIzin,
+      shift: sched ? sched.name : '-',
+      terlambat,
     });
   }
   rows.sort((a, b) => a.tanggalISO.localeCompare(b.tanggalISO) || a.nama.localeCompare(b.nama));
@@ -159,9 +181,9 @@ export function buildRekap(
 const HEADERS = [
   'No', 'Nama', 'Departemen', 'PT', 'Tanggal',
   'Jam Masuk', 'Jam Pulang', 'Status', 'Persetujuan', 'Kantor', 'Jarak', 'Koordinat GPS', 'Alasan',
-  'Foto Masuk', 'Foto Pulang', 'Dokumen Surat',
+  'Foto Masuk', 'Foto Pulang', 'Dokumen Surat', 'Shift', 'Terlambat',
 ];
-const COL_W = [5, 24, 16, 18, 14, 11, 11, 10, 12, 18, 9, 22, 26, 32, 32, 32];
+const COL_W = [5, 24, 16, 18, 14, 11, 11, 10, 12, 18, 9, 22, 26, 32, 32, 32, 16, 12];
 
 /** Export XLSX berwarna: header gelap, Jam Masuk biru, Jam Pulang kuning. */
 export function exportRekapXLSX(rows: RekapRow[], fileName: string) {
@@ -170,7 +192,7 @@ export function exportRekapXLSX(rows: RekapRow[], fileName: string) {
     aoa.push([
       i + 1, r.nama, r.departemen, r.pt, r.tanggal,
       r.masuk, r.pulang, r.status, r.persetujuan, r.kantor, r.jarak, r.koordinat, r.alasan,
-      r.fotoMasuk, r.fotoPulang, r.dokumenIzin,
+      r.fotoMasuk, r.fotoPulang, r.dokumenIzin, r.shift, r.terlambat,
     ]);
   });
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -217,7 +239,7 @@ export function exportRekapCSV(rows: RekapRow[], fileName: string) {
   const csv = '\ufeff' + [HEADERS.map(cell).join(','),
     ...rows.map((r, i) => [i + 1, r.nama, r.departemen, r.pt, r.tanggal, r.masuk, r.pulang,
       r.status, r.persetujuan, r.kantor, r.jarak, r.koordinat, r.alasan,
-      r.fotoMasuk, r.fotoPulang, r.dokumenIzin].map(cell).join(',')),
+      r.fotoMasuk, r.fotoPulang, r.dokumenIzin, r.shift, r.terlambat].map(cell).join(',')),
   ].join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -226,6 +248,41 @@ export function exportRekapCSV(rows: RekapRow[], fileName: string) {
   a.download = fileName;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+const PAYROLL_HEADERS = [
+  'No', 'Nama', 'Departemen', 'Hari Kerja', 'Hadir', 'Terlambat (kali)', 'Total Terlambat (mnt)',
+  'Izin', 'Sakit', 'Alpha', 'Total Jam Kerja', 'Jam Lembur', 'Kuota Cuti', 'Sisa Cuti',
+];
+
+/** Rekap payroll bulanan (satu baris per karyawan) untuk dihitung gajinya. */
+export function exportPayrollXLSX(rows: PayrollRow[], fileName: string) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') {
+    Alert.alert('Unduh Berkas', 'Fitur unduh rekap payroll dirancang untuk dibuka melalui Web Browser Admin.');
+    return;
+  }
+  const aoa: any[][] = [PAYROLL_HEADERS];
+  rows.forEach((r, i) => {
+    aoa.push([
+      i + 1, r.nama, r.departemen, r.hariKerja, r.hadir, r.terlambat, r.menitTerlambat,
+      r.izin, r.sakit, r.alpha, r.jamKerja, r.jamLembur, r.kuotaCuti, r.sisaCuti,
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [5, 24, 16, 11, 8, 15, 20, 7, 7, 7, 15, 11, 11, 10].map((w) => ({ wch: w }));
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let r = 0; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      if (!cell) continue;
+      cell.s = r === 0
+        ? { fill: HEADER_FILL, font: HEADER_FONT, border: BORDER, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } }
+        : { border: BORDER, alignment: { vertical: 'center', horizontal: c <= 2 ? 'left' : 'center' } };
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Payroll');
+  XLSX.writeFile(wb, fileName);
 }
 
 export interface SlipPrintData {

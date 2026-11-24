@@ -20,6 +20,7 @@ import { colors, fontSize, radius, spacing } from '../../theme';
 import { select } from '../../services/feedbackService';
 import { todayWIB } from '../../utils/dates';
 import { DEFAULT_PROJECTS } from '../../services/activityService';
+import { countLeaveDays } from '../../utils/payroll';
 
 const CAL_MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -63,6 +64,9 @@ interface LeaveRequestFormProps {
   }) => void;
   onBack: () => void;
   loading?: boolean;
+  /** Kuota cuti tahunan & yang sudah terpakai (termasuk pengajuan menunggu). */
+  leaveQuota?: number;
+  leaveUsed?: number;
 }
 
 export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
@@ -70,6 +74,8 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   onSubmit,
   onBack,
   loading = false,
+  leaveQuota,
+  leaveUsed = 0,
 }) => {
   const today = todayWIB();
   const [leaveCategory, setLeaveCategory] = useState<'izin' | 'sakit' | 'lembur' | 'telat'>(initialCategory);
@@ -212,6 +218,15 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     if (durationMode === 'full' && endDate < startDate) {
       Alert.alert('Tanggal Tidak Valid', 'Tanggal selesai izin tidak boleh lebih awal dari tanggal mulai.');
       return;
+    }
+
+    if (leaveCategory === 'izin' && leaveQuota != null) {
+      const need = countLeaveDays(startDate, durationMode === 'half' ? startDate : endDate, durationMode === 'half');
+      const left = Math.max(0, leaveQuota - leaveUsed);
+      if (need > left) {
+        Alert.alert('Kuota Cuti Tidak Cukup', 'Pengajuan ini butuh ' + need + ' hari, sisa kuota cuti Anda ' + left + ' hari. Hubungi admin bila perlu tambahan.');
+        return;
+      }
     }
 
     const tag = durationMode === 'half'
@@ -586,6 +601,11 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
               {/* Card 1: Durasi Pengajuan (Penuh vs Setengah Hari) */}
               <View style={styles.sectionCard}>
                 <Text style={styles.label}>{leaveCategory === 'sakit' ? 'Durasi Sakit' : 'Durasi Izin'}</Text>
+                {leaveCategory === 'izin' && leaveQuota != null && (
+                  <Text style={styles.quotaText}>
+                    {'Sisa cuti tahun ini: ' + Math.max(0, leaveQuota - leaveUsed) + ' dari ' + leaveQuota + ' hari'}
+                  </Text>
+                )}
                 <View style={styles.durationRow}>
                   <TouchableOpacity
                     activeOpacity={0.8}
@@ -950,6 +970,7 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
 };
 
 const styles = StyleSheet.create({
+  quotaText: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primaryDark, marginBottom: 8 },
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,

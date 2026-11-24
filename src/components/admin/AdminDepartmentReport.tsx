@@ -17,10 +17,13 @@ import { UserProfile, AttendanceRecord } from '../../types/attendance';
 import { AttendanceService } from '../../services/attendanceService';
 import { ActivityRecord, fetchActivities, createActivity } from '../../services/activityService';
 import { todayWIB, getInitials } from '../../utils/dates';
+import { buildPayroll } from '../../utils/payroll';
+import { WorkShift } from '../../types/attendance';
 import {
   buildRekap,
   exportRekapCSV,
   exportRekapXLSX,
+  exportPayrollXLSX,
   exportActivitiesXLSX,
 } from '../../services/exportService';
 import { Card } from '../ui/Card';
@@ -47,6 +50,8 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [departmentList, setDepartmentList] = useState<string[]>([]);
   const [officeList, setOfficeList] = useState<OfficeSettings[]>(offices);
+  const [shiftList, setShiftList] = useState<WorkShift[]>([]);
+  const rekapCtx = { shifts: shiftList, offices: officeList };
   const [loading, setLoading] = useState(true);
 
   const [backupModalVisible, setBackupModalVisible] = useState(false);
@@ -108,9 +113,11 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
       AttendanceService.getAllAttendances(),
       AttendanceService.getDepartments(companyId),
       AttendanceService.getOfficeList(),
+      AttendanceService.getShifts(companyId).catch(() => [] as WorkShift[]),
     ])
-      .then(([recs, depts, offs]) => {
+      .then(([recs, depts, offs, shiftRows]) => {
         setRecords(recs);
+        setShiftList(shiftRows);
         if (depts) {
           setDepartmentList(depts);
         }
@@ -242,15 +249,26 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
   // Export Semua
   const exportAll = () => {
     if (!guardWeb('Export Excel')) return;
-    const rows = buildRekap(users, records);
+    const rows = buildRekap(users, records, undefined, rekapCtx);
     exportRekapXLSX(rows, fname('semua-divisi', 'xlsx'));
     succeed();
   };
 
   const exportAllCSV = () => {
     if (!guardWeb('Export CSV')) return;
-    const rows = buildRekap(users, records);
+    const rows = buildRekap(users, records, undefined, rekapCtx);
     exportRekapCSV(rows, fname('semua-divisi', 'csv'));
+    succeed();
+  };
+
+  // Rekap payroll bulanan: offset 0 = bulan ini, -1 = bulan lalu
+  const exportPayroll = (offset: 0 | -1) => {
+    if (!guardWeb('Rekap Payroll')) return;
+    const today = todayWIB();
+    const d = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1 + offset, 1));
+    const ym = d.toISOString().slice(0, 7);
+    const rows = buildPayroll(users, records, shiftList, officeList, ym, today);
+    exportPayrollXLSX(rows, 'rekap-payroll-' + ym + '.xlsx');
     succeed();
   };
 
@@ -263,7 +281,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
       if (isNone) return !u.department || u.department.trim() === '' || u.department.trim().toLowerCase() === 'none';
       return u.department === department;
     });
-    const rows = buildRekap(deptStaff, records);
+    const rows = buildRekap(deptStaff, records, undefined, rekapCtx);
     exportRekapXLSX(rows, fname(`${department.toLowerCase()}-rekap`, 'xlsx'));
     succeed();
   };
@@ -276,7 +294,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
       if (isNone) return !u.department || u.department.trim() === '' || u.department.trim().toLowerCase() === 'none';
       return u.department === department;
     });
-    const rows = buildRekap(deptStaff, records);
+    const rows = buildRekap(deptStaff, records, undefined, rekapCtx);
     exportRekapCSV(rows, fname(`${department.toLowerCase()}-rekap`, 'csv'));
     succeed();
   };
@@ -284,7 +302,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
   // Aksi Karyawan Individu: 1. Rekap Absensi Pribadi
   const exportUserAttendance = (user: UserProfile) => {
     if (!guardWeb('Export Absensi')) return;
-    const rows = buildRekap([user], records);
+    const rows = buildRekap([user], records, undefined, rekapCtx);
     const cleanName = (user.fullName || 'karyawan').toLowerCase().replace(/\s+/g, '-');
     exportRekapXLSX(rows, `rekap-absensi-${cleanName}-${stamp}.xlsx`);
     succeed();
@@ -366,6 +384,16 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
             >
               <Feather name="file-text" size={14} color={colors.primaryDark} style={{ marginRight: 6 }} />
               <Text style={styles.exportAllText}>Unduh Cepat</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.exportAllBtn} onPress={() => exportPayroll(-1)} activeOpacity={0.8}>
+              <Feather name="dollar-sign" size={14} color={colors.primaryDark} style={{ marginRight: 6 }} />
+              <Text style={styles.exportAllText}>Payroll Bulan Lalu</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.exportAllBtn} onPress={() => exportPayroll(0)} activeOpacity={0.8}>
+              <Feather name="dollar-sign" size={14} color={colors.primaryDark} style={{ marginRight: 6 }} />
+              <Text style={styles.exportAllText}>Payroll Bulan Ini</Text>
             </TouchableOpacity>
           </View>
         }
@@ -747,6 +775,7 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
         records={records}
         departments={allDepartments}
         offices={officeList}
+        shifts={shiftList}
         initialScope={backupConfig.scope}
         initialOffice={backupConfig.office}
         initialDepartment={backupConfig.department}

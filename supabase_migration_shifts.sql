@@ -23,3 +23,7 @@ ALTER TABLE public.profiles
 -- Jadwal per hari: {"0".."6" (Minggu..Sabtu): shift_id | null (jam kantor)}. Hari tanpa kunci ikut shift_id.
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS shift_schedule JSONB;
+
+-- Kuota cuti (izin, bukan sakit) per tahun dalam hari.
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS leave_quota INTEGER NOT NULL DEFAULT 12 CHECK (leave_quota BETWEEN 0 AND 365);

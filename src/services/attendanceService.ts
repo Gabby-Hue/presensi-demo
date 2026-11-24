@@ -54,6 +54,7 @@ function mapUser(u: any): UserProfile {
     createdAt: u.created_at || u.createdAt,
     shiftId: u.shift_id != null ? String(u.shift_id) : null,
     shiftSchedule: u.shift_schedule || null,
+    leaveQuota: u.leave_quota ?? null,
   };
 }
 
@@ -414,6 +415,7 @@ export class AttendanceService {
     fullName: string;
     department?: string;
     password?: string;
+    leaveQuota?: number;
   }): Promise<{ success: boolean; message: string }> {
     const cleanName = params.fullName.trim();
     if (!cleanName) return { success: false, message: 'Nama tidak boleh kosong.' };
@@ -426,6 +428,7 @@ export class AttendanceService {
       if (params.password && params.password.length >= 6) {
         updateData.plain_password = params.password;
       }
+      if (params.leaveQuota != null) updateData.leave_quota = params.leaveQuota;
 
       const { error } = await supabase
         .from('profiles')
