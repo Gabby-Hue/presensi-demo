@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +15,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { SelectDropdown } from '../ui/SelectDropdown';
 import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
@@ -42,8 +44,9 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
   // Reassign Modal State
   const [reassignSource, setReassignSource] = useState<DepartmentItem | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>('');
-  const [reassignMode, setReassignMode] = useState<'single' | 'all'>('single');
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
+  // Karyawan yang dicentang untuk dipindah + kata kunci pencarian
+  const [pickedIds, setPickedIds] = useState<string[]>([]);
+  const [staffQuery, setStaffQuery] = useState('');
   const [reassigning, setReassigning] = useState(false);
 
   // Delete State
@@ -167,45 +170,46 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
         u.role === 'employee' &&
         u.department?.trim().toLowerCase() === dept.name.trim().toLowerCase()
     );
-    setSelectedStaffId(sourceStaff[0]?.id ? String(sourceStaff[0].id) : '');
-    setReassignMode(sourceStaff.length > 1 ? 'single' : 'all');
+    // 1 karyawan: langsung tercentang. Lebih dari 1: admin memilih sendiri.
+    setPickedIds(sourceStaff.length === 1 ? [String(sourceStaff[0].id)] : []);
+    setStaffQuery('');
   };
 
   const handleConfirmReassign = async () => {
     if (!reassignSource || !reassignTarget) return;
 
-    if (reassignMode === 'single') {
-      const staff = users.find((u) => String(u.id) === String(selectedStaffId));
-      if (!staff) {
-        setFeedbackDialog({
-          title: 'Karyawan Belum Dipilih',
-          message: 'Pilih karyawan yang ingin dipindahkan terlebih dahulu.',
-          variant: 'danger',
-        });
-        return;
-      }
-      setReassigning(true);
-      const res = await AttendanceService.updateEmployeeAccount({
-        id: String(staff.id),
-        fullName: staff.fullName,
-        department: reassignTarget,
+    const picked = sourceEmployees.filter((u) => pickedIds.includes(String(u.id)));
+    if (picked.length === 0) {
+      setFeedbackDialog({
+        title: 'Karyawan Belum Dipilih',
+        message: 'Centang minimal satu karyawan yang ingin dipindahkan.',
+        variant: 'danger',
       });
-      setReassigning(false);
-      if (!res.success) {
-        fail();
-        setFeedbackDialog({
-          title: 'Gagal Memindahkan',
-          message: res.message,
-          variant: 'danger',
+      return;
+    }
+
+    if (picked.length < sourceEmployees.length) {
+      setReassigning(true);
+      const failed: string[] = [];
+      for (const staff of picked) {
+        const res = await AttendanceService.updateEmployeeAccount({
+          id: String(staff.id),
+          fullName: staff.fullName,
+          department: reassignTarget,
         });
-        return;
+        if (!res.success) failed.push(staff.fullName);
       }
-      succeed();
+      setReassigning(false);
+      const moved = picked.length - failed.length;
+      if (failed.length) fail();
+      else succeed();
       setReassignSource(null);
       setFeedbackDialog({
-        title: 'Karyawan Berhasil Dipindahkan',
-        message: `${staff.fullName} berhasil dipindahkan ke departemen "${reassignTarget}".`,
-        variant: 'primary',
+        title: failed.length ? 'Sebagian Gagal Dipindahkan' : 'Karyawan Berhasil Dipindahkan',
+        message:
+          (moved ? moved + ' karyawan dipindahkan ke departemen "' + reassignTarget + '".' : '') +
+          (failed.length ? ' Gagal: ' + failed.join(', ') + '.' : ''),
+        variant: failed.length ? 'danger' : 'primary',
       });
       await fetchDepartments();
       onChanged();
@@ -468,120 +472,98 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
           </Text>
         </View>
 
-        {/* Pilihan Cakupan: 1 Karyawan Saja vs Semua Karyawan */}
-        <Text style={[styles.modalLabel, { marginTop: 14 }]}>Pilih Opsi Pemindahan:</Text>
-        <View style={{ gap: 8, marginTop: 6, marginBottom: 14 }}>
-          {/* Opsi 1: Pindahkan 1 Karyawan Tertentu */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => {
-              select();
-              setReassignMode('single');
-            }}
-            style={[styles.hybridOptionCard, reassignMode === 'single' && styles.hybridOptionCardActive]}
-          >
-            <View style={[styles.radioCircle, reassignMode === 'single' && styles.radioCircleActive]}>
-              {reassignMode === 'single' && <View style={styles.radioInner} />}
-            </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[styles.hybridOptionTitle, reassignMode === 'single' && styles.hybridOptionTitleActive]}>
-                Pindahkan 1 Karyawan Saja (Tertentu)
+        {/* 1. Pilih karyawan (centang, bisa beberapa) */}
+        <View style={[styles.pickHeader, { marginTop: 14 }]}>
+          <Text style={styles.modalLabel}>Pilih karyawan ({pickedIds.length}/{sourceEmployees.length})</Text>
+          {sourceEmployees.length > 1 && (
+            <TouchableOpacity
+              hitSlop={8}
+              onPress={() => {
+                select();
+                setPickedIds(pickedIds.length === sourceEmployees.length ? [] : sourceEmployees.map((u) => String(u.id)));
+              }}
+            >
+              <Text style={styles.pickAllText}>
+                {pickedIds.length === sourceEmployees.length ? 'Batal pilih semua' : 'Pilih semua'}
               </Text>
-              <Text style={styles.hybridOptionSub}>
-                Pilih salah satu karyawan dari divisi ini untuk dipindahkan ke divisi lain.
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* Opsi 2: Pindahkan Seluruh Karyawan */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => {
-              select();
-              setReassignMode('all');
-            }}
-            style={[styles.hybridOptionCard, reassignMode === 'all' && styles.hybridOptionCardActive]}
-          >
-            <View style={[styles.radioCircle, reassignMode === 'all' && styles.radioCircleActive]}>
-              {reassignMode === 'all' && <View style={styles.radioInner} />}
-            </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[styles.hybridOptionTitle, reassignMode === 'all' && styles.hybridOptionTitleActive]}>
-                Pindahkan Semua Karyawan ({reassignSource?.employeeCount} Orang)
-              </Text>
-              <Text style={styles.hybridOptionSub}>
-                Alihkan seluruh anggota divisi ini sekaligus ke departemen tujuan baru.
-              </Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
         </View>
-
-        {/* Jika mode single, pilih karyawan */}
-        {reassignMode === 'single' && (
-          <View style={{ marginBottom: 14 }}>
-            <Text style={styles.modalLabel}>Pilih Karyawan yang Dipindahkan:</Text>
-            {sourceEmployees.length === 0 ? (
-              <Text style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic', marginTop: 4 }}>
-                Tidak ada data karyawan terdaftar di departemen ini.
-              </Text>
-            ) : (
-              <View style={[styles.chipGrid, { marginTop: 6 }]}>
-                {sourceEmployees.map((emp) => {
-                  const isEmpSelected = selectedStaffId === String(emp.id);
-                  return (
-                    <TouchableOpacity
-                      key={emp.id}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        select();
-                        setSelectedStaffId(String(emp.id));
-                      }}
-                      style={[styles.chipItem, isEmpSelected && styles.chipItemActive]}
-                    >
-                      <Feather
-                        name="user"
-                        size={12}
-                        color={isEmpSelected ? colors.primaryDark : colors.muted}
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text style={[styles.chipText, isEmpSelected && styles.chipTextActive]}>
-                        {emp.fullName}
-                      </Text>
-                      {isEmpSelected && (
-                        <Feather name="check" size={13} color={colors.primaryDark} style={{ marginLeft: 6 }} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+        {sourceEmployees.length === 0 ? (
+          <Text style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic', marginTop: 4 }}>
+            Tidak ada data karyawan terdaftar di departemen ini.
+          </Text>
+        ) : (
+          <>
+            {sourceEmployees.length > 5 && (
+              <View style={styles.searchBox}>
+                <Feather name="search" size={15} color={colors.muted} />
+                <TextInput
+                  style={styles.searchInput}
+                  value={staffQuery}
+                  onChangeText={setStaffQuery}
+                  placeholder="Cari nama karyawan"
+                  placeholderTextColor={colors.faint}
+                  accessibilityLabel="Cari nama karyawan"
+                />
               </View>
             )}
-          </View>
+            <View style={styles.pickList}>
+              <ScrollView nestedScrollEnabled style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
+                {sourceEmployees
+                  .filter((emp) => emp.fullName.toLowerCase().includes(staffQuery.trim().toLowerCase()))
+                  .map((emp) => {
+                    const id = String(emp.id);
+                    const on = pickedIds.includes(id);
+                    return (
+                      <TouchableOpacity
+                        key={id}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          select();
+                          setPickedIds((p) => (on ? p.filter((x) => x !== id) : [...p, id]));
+                        }}
+                        style={[styles.pickRow, on && styles.pickRowOn]}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: on }}
+                      >
+                        <View style={[styles.checkbox, on && styles.checkboxOn]}>
+                          {on && <Feather name="check" size={13} color="#FFFFFF" />}
+                        </View>
+                        <Text style={[styles.pickName, on && { color: colors.primaryDark }]} numberOfLines={1}>
+                          {emp.fullName}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+              </ScrollView>
+            </View>
+          </>
         )}
 
-        <Text style={styles.modalLabel}>Pilih Departemen Tujuan:</Text>
-        <View style={styles.chipGrid}>
-          {otherDepartmentsForReassign.map((target) => {
-            const isSelected = reassignTarget === target.name;
-            return (
-              <TouchableOpacity
-                key={target.id}
-                activeOpacity={0.7}
-                onPress={() => {
-                  select();
-                  setReassignTarget(target.name);
-                }}
-                style={[styles.chipItem, isSelected && styles.chipItemActive]}
-              >
-                <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                  {target.name} ({target.employeeCount} orang)
-                </Text>
-                {isSelected && (
-                  <Feather name="check" size={13} color={colors.primaryDark} style={{ marginLeft: 6 }} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {/* 2. Tujuan */}
+        <Text style={[styles.modalLabel, { marginTop: 14, marginBottom: 6 }]}>Pindahkan ke departemen</Text>
+        {otherDepartmentsForReassign.length === 0 ? (
+          <Text style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic' }}>
+            Belum ada departemen lain. Tambahkan departemen tujuan terlebih dahulu.
+          </Text>
+        ) : (
+          <SelectDropdown
+            options={otherDepartmentsForReassign.map((t) => ({ value: t.name, label: t.name + ' (' + t.employeeCount + ' orang)' }))}
+            value={reassignTarget}
+            onChange={setReassignTarget}
+            icon="briefcase"
+            placeholder="Pilih departemen tujuan"
+            accessibilityLabel="Departemen tujuan"
+          />
+        )}
+
+        {/* 3. Ringkasan */}
+        {pickedIds.length > 0 && reassignTarget ? (
+          <Text style={styles.reassignSummary}>
+            {pickedIds.length} karyawan akan dipindah dari "{reassignSource?.name}" ke "{reassignTarget}".
+          </Text>
+        ) : null}
 
         <View style={styles.modalBtnRow}>
           <Button
@@ -591,19 +573,13 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
             style={{ flex: 1 }}
           />
           <Button
-            title={
-              reassigning
-                ? 'Memindahkan...'
-                : reassignMode === 'single'
-                ? 'Pindahkan Karyawan'
-                : 'Pindahkan Semua'
-            }
+            title={reassigning ? 'Memindahkan...' : 'Pindahkan ' + (pickedIds.length || '') + ' Karyawan'}
             icon="repeat"
             loading={reassigning}
             disabled={
               !reassignTarget ||
               otherDepartmentsForReassign.length === 0 ||
-              (reassignMode === 'single' && !selectedStaffId)
+              pickedIds.length === 0
             }
             onPress={handleConfirmReassign}
             style={{ flex: 1.4 }}
@@ -759,6 +735,29 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
 };
 
 const styles = StyleSheet.create({
+  pickHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  pickAllText: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingHorizontal: 10, marginBottom: 6, backgroundColor: colors.surface,
+  },
+  searchInput: { flex: 1, paddingVertical: 9, fontSize: fontSize.sm, color: colors.ink },
+  pickList: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, overflow: 'hidden' },
+  pickRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.surfaceSoft,
+  },
+  pickRowOn: { backgroundColor: colors.primarySoft },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.borderStrong,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF',
+  },
+  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  pickName: { flex: 1, fontSize: fontSize.sm, fontWeight: '600', color: colors.ink },
+  reassignSummary: {
+    marginTop: 12, padding: 10, borderRadius: radius.md, backgroundColor: colors.surfaceSoft,
+    fontSize: fontSize.xs, color: colors.ink, fontWeight: '600',
+  },
   container: {
     paddingBottom: 24,
   },

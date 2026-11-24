@@ -4,6 +4,7 @@
 import React from 'react';
 import {
   Modal as RNModal,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -40,7 +41,15 @@ export const Modal: React.FC<ModalProps> = ({ visible, onClose, title, children 
               <Feather name="x" size={20} color={colors.ink} />
             </TouchableOpacity>
           </View>
-          <View style={styles.body}>{children}</View>
+          {/* Isi panjang bisa di-scroll; tinggi sheet dibatasi maxHeight 90% */}
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            {children}
+          </ScrollView>
         </SafeAreaView>
       </View>
     </RNModal>
@@ -102,5 +111,8 @@ const styles = StyleSheet.create({
   body: {
     marginTop: spacing.md,
     flexShrink: 1,
+  },
+  bodyContent: {
+    paddingBottom: spacing.sm,
   },
 });
