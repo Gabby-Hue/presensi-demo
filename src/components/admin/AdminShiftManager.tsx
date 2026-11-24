@@ -9,6 +9,7 @@ import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
 import { DAY_LABELS, ShiftSchedule, isOvernight, shiftIdFor, validateShiftTimes } from '../../utils/shifts';
 import { todayWIB } from '../../utils/dates';
+import { formatTimeInput, startTimeChange } from '../../utils/time';
 
 interface Props {
   currentAdmin: UserProfile;
@@ -17,7 +18,9 @@ interface Props {
 }
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-const emptyForm = { name: '', start: '07:00', end: '15:00', late: '07:15' };
+// Kosong agar admin langsung mengetik; jam telat & pulang terisi otomatis dari jam masuk.
+const emptyForm = { name: '', start: '', end: '', late: '' };
+const TIME_PLACEHOLDER = { start: '08:00', late: '08:30', end: '16:00' } as const;
 
 /**
  * Shift per departemen (opsional). Departemen tanpa shift (mis. HRD, Accounting) tetap ikut jam kantor.
@@ -381,17 +384,23 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
                       <View style={styles.formBox}>
                         <Text style={styles.label}>Jam shift baru</Text>
                         <TextInput style={styles.input} placeholder="Nama shift, mis. Shift Pagi" value={form.name}
+                          placeholderTextColor={colors.faint} accessibilityLabel="Nama shift"
                           onChangeText={(t) => setForm((f) => ({ ...f, name: t }))} />
                         <View style={styles.row}>
-                          {([['start', 'Masuk'], ['end', 'Pulang'], ['late', 'Batas telat']] as const).map(([k, lbl]) => (
+                          {([['start', 'Masuk'], ['late', 'Batas telat'], ['end', 'Pulang']] as const).map(([k, lbl]) => (
                             <View key={k} style={{ flex: 1 }}>
                               <Text style={styles.label}>{lbl}</Text>
-                              <TextInput style={styles.input} value={form[k]} placeholder="HH:MM" maxLength={5} accessibilityLabel={lbl}
-                                onChangeText={(t) => setForm((f) => ({ ...f, [k]: t }))} />
+                              <TextInput style={styles.input} value={form[k]} placeholder={TIME_PLACEHOLDER[k]} placeholderTextColor={colors.faint}
+                                maxLength={5} keyboardType="number-pad" accessibilityLabel={lbl}
+                                onChangeText={(t) => {
+                                  if (k !== 'start') return setForm((f) => ({ ...f, [k]: formatTimeInput(t) }));
+                                  const p = startTimeChange(t);
+                                  setForm((f) => ({ ...f, start: p.start, ...(p.late ? { late: p.late } : {}), ...(p.end ? { end: p.end } : {}) }));
+                                }} />
                             </View>
                           ))}
                         </View>
-                        <Text style={[styles.deptSub, { marginTop: 4 }]}>Jam pulang lebih kecil dari jam masuk berarti lewat tengah malam (mis. 22:00 - 06:00).</Text>
+                        <Text style={[styles.deptSub, { marginTop: 4 }]}>Ketik jam masuk (mis. 0800), batas telat +30 menit dan jam pulang +8 jam terisi otomatis dan bisa diubah. Jam pulang lebih kecil dari jam masuk berarti lewat tengah malam.</Text>
                         {formError ? <Text style={styles.error}>{formError}</Text> : null}
                         <View style={styles.row}>
                           <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={() => { select(); setFormOpen(false); setFormError(null); }}>

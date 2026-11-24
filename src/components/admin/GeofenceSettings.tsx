@@ -9,6 +9,7 @@ import { getCurrentLocation } from '../../services/locationService';
 import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, radius, spacing } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
+import { formatTimeInput, startTimeChange } from '../../utils/time';
 
 interface OfficeManagerProps {
   offices: OfficeSettings[];
@@ -522,7 +523,14 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
             <TextInput
               style={styles.globalHoursInput}
               value={globalStart}
-              onChangeText={setGlobalStart}
+              onChangeText={(v) => {
+                const p = startTimeChange(v);
+                setGlobalStart(p.start);
+                if (p.late) setGlobalLate(p.late);
+                if (p.end) setGlobalEnd(p.end);
+              }}
+              keyboardType="number-pad"
+              maxLength={5}
               placeholder="08:00"
               placeholderTextColor={colors.faint}
             />
@@ -532,8 +540,10 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
             <TextInput
               style={styles.globalHoursInput}
               value={globalLate}
-              onChangeText={setGlobalLate}
-              placeholder="10:00"
+              onChangeText={(v) => setGlobalLate(formatTimeInput(v))}
+              keyboardType="number-pad"
+              maxLength={5}
+              placeholder="08:30"
               placeholderTextColor={colors.faint}
             />
           </View>
@@ -542,8 +552,10 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
             <TextInput
               style={styles.globalHoursInput}
               value={globalEnd}
-              onChangeText={setGlobalEnd}
-              placeholder="17:00"
+              onChangeText={(v) => setGlobalEnd(formatTimeInput(v))}
+              keyboardType="number-pad"
+              maxLength={5}
+              placeholder="16:00"
               placeholderTextColor={colors.faint}
             />
           </View>
@@ -833,8 +845,19 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
                   <TextInput
                     style={styles.input}
                     value={form.workStartTime}
-                    onChangeText={(v) => setForm((f) => ({ ...f, workStartTime: v }))}
+                    onChangeText={(v) => {
+                      const p = startTimeChange(v);
+                      setForm((f) => ({
+                        ...f,
+                        workStartTime: p.start,
+                        ...(p.late ? { lateDeadline: p.late } : {}),
+                        ...(p.end ? { workEndTime: p.end } : {}),
+                      }));
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={5}
                     placeholder="08:00"
+                    placeholderTextColor={colors.faint}
                   />
                 </View>
                 <View style={[styles.formGroup, { flex: 1, marginHorizontal: 4, marginBottom: 0 }]}>
@@ -842,8 +865,11 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
                   <TextInput
                     style={styles.input}
                     value={form.lateDeadline}
-                    onChangeText={(v) => setForm((f) => ({ ...f, lateDeadline: v }))}
-                    placeholder="10:00"
+                    onChangeText={(v) => setForm((f) => ({ ...f, lateDeadline: formatTimeInput(v) }))}
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    placeholder="08:30"
+                    placeholderTextColor={colors.faint}
                   />
                 </View>
                 <View style={[styles.formGroup, { flex: 1, marginLeft: 4, marginBottom: 0 }]}>
@@ -851,8 +877,11 @@ export const GeofenceSettings: React.FC<OfficeManagerProps> = ({
                   <TextInput
                     style={styles.input}
                     value={form.workEndTime}
-                    onChangeText={(v) => setForm((f) => ({ ...f, workEndTime: v }))}
-                    placeholder="17:00"
+                    onChangeText={(v) => setForm((f) => ({ ...f, workEndTime: formatTimeInput(v) }))}
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    placeholder="16:00"
+                    placeholderTextColor={colors.faint}
                   />
                 </View>
               </View>
