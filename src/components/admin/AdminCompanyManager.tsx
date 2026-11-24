@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
+import { SelectDropdown } from '../ui/SelectDropdown';
 
 interface AdminCompanyManagerProps {
   currentAdmin: UserProfile;
@@ -256,24 +257,15 @@ export const AdminCompanyManager: React.FC<AdminCompanyManagerProps> = ({
         <TextInput style={styles.input} placeholder="Minimal 6 karakter" placeholderTextColor={colors.faint} value={aPass} onChangeText={setAPass} secureTextEntry />
         
         <Text style={styles.label}>PT yang Dikelola</Text>
-        <View style={styles.chipRow}>
-          {companies.map((c) => {
-            const active = (aCompany || companies[0]?.id) === c.id;
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => {
-                  select();
-                  setACompany(c.id);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <SelectDropdown
+          options={companies.map((co) => ({ value: co.id, label: co.name }))}
+          value={aCompany || companies[0]?.id || ''}
+          onChange={setACompany}
+          icon="briefcase"
+          placeholder="Pilih PT"
+          emptyText="Belum ada PT. Tambahkan PT terlebih dahulu."
+          accessibilityLabel="PT yang dikelola"
+        />
         <Button title={aSaving ? 'Membuat...' : 'Buat Akun Admin Cabang'} icon="user-check" loading={aSaving} onPress={handleCreateBranchAdmin} style={{ marginTop: 12 }} />
       </Card>
 

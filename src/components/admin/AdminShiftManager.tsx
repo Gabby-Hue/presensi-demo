@@ -5,6 +5,7 @@ import { UserProfile, WorkShift } from '../../types/attendance';
 import { AttendanceService } from '../../services/attendanceService';
 import { Card } from '../ui/Card';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { SelectDropdown } from '../ui/SelectDropdown';
 import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
 import { DAY_LABELS, ShiftSchedule, isOvernight, shiftIdFor, validateShiftTimes } from '../../utils/shifts';
@@ -43,7 +44,6 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
   const [openSchedule, setOpenSchedule] = useState<string | null>(null);
   // Divisi yang baru ditambahkan admin (belum punya jam shift) agar tetap tampil.
   const [addedDepts, setAddedDepts] = useState<string[]>([]);
-  const [pickDeptOpen, setPickDeptOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ type: 'shift'; shift: WorkShift } | { type: 'dept'; dept: string } | null>(null);
 
@@ -270,7 +270,6 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
   const addDept = (dept: string) => {
     select();
     setAddedDepts((d) => (d.includes(dept) ? d : [...d, dept]));
-    setPickDeptOpen(false);
     setOpenDept(dept);
     setForm(emptyForm);
     setFormError(null);
@@ -293,36 +292,22 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
         <Text style={styles.error}>{loadError}</Text>
       ) : (
         <View style={{ gap: 8 }}>
-          <TouchableOpacity
-            style={[styles.addBtn, { marginTop: 0 }, hiddenDepts.length === 0 && { opacity: 0.5 }]}
-            disabled={hiddenDepts.length === 0}
-            onPress={() => { select(); setPickDeptOpen((o) => !o); }}
-            accessibilityState={{ expanded: pickDeptOpen }}
-          >
-            <Feather name={pickDeptOpen ? 'x' : 'plus'} size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.addBtnText}>
-              {hiddenDepts.length === 0 ? 'Semua divisi sudah ditambahkan' : pickDeptOpen ? 'Batal' : 'Tambah Divisi'}
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.label}>Tambah divisi</Text>
+          <SelectDropdown
+            options={hiddenDepts.map((d) => ({ value: d, label: d }))}
+            value=""
+            onChange={addDept}
+            icon="plus"
+            placeholder={hiddenDepts.length ? 'Pilih divisi yang memakai shift' : 'Semua divisi sudah ditambahkan'}
+            emptyText="Semua divisi sudah ditambahkan."
+            accessibilityLabel="Tambah divisi yang memakai shift"
+          />
 
-          {pickDeptOpen && (
-            <View style={styles.pickBox}>
-              <Text style={styles.label}>Pilih divisi yang memakai shift</Text>
-              <View style={[styles.chips, { marginTop: 6 }]}>
-                {hiddenDepts.map((d) => (
-                  <TouchableOpacity key={d} style={styles.chip} onPress={() => addDept(d)}>
-                    <Text style={styles.chipText}>{d}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {visibleDepts.length === 0 && !pickDeptOpen && (
+          {visibleDepts.length === 0 && (
             <View style={styles.emptyBox}>
               <Feather name="clock" size={22} color={colors.muted} />
               <Text style={styles.emptyTitle}>Belum ada divisi yang memakai shift</Text>
-              <Text style={styles.deptSub}>Semua karyawan masih memakai jam kantor. Klik Tambah Divisi untuk mulai.</Text>
+              <Text style={styles.deptSub}>Semua karyawan masih memakai jam kantor. Pilih divisi di atas untuk mulai.</Text>
             </View>
           )}
 
@@ -510,7 +495,6 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: fontSize.xs, fontWeight: '600', marginTop: 4 },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 10, marginTop: 8 },
   addBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: fontSize.sm },
-  pickBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12 },
   emptyBox: { alignItems: 'center', gap: 6, paddingVertical: 24, paddingHorizontal: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, borderRadius: radius.md },
   emptyTitle: { fontSize: fontSize.sm, fontWeight: '800', color: colors.ink, textAlign: 'center' },
   formBox: { gap: 4, marginTop: 8, padding: 10, borderRadius: radius.md, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.border },
