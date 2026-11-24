@@ -18,6 +18,15 @@ import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
 import { DEFAULT_LEAVE_QUOTA } from '../../utils/payroll';
+import { addMinutes } from '../../utils/time';
+import { SelectDropdown } from '../ui/SelectDropdown';
+import { WorkShift } from '../../types/attendance';
+
+// Lama kerja khusus (menit). Kosong = ikut jam pulang shift / jam kantor.
+const WORK_OPTIONS = [
+  { value: '', label: 'Ikut shift / jam kantor' },
+  ...[6, 7, 8, 9, 10, 11, 12].map((h) => ({ value: String(h * 60), label: h + ' jam' })),
+];
 
 interface AdminEmployeeManagerProps {
   currentAdmin: UserProfile;
@@ -52,6 +61,11 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
   const [editDept, setEditDept] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editQuota, setEditQuota] = useState('');
+  // Shift & lama kerja khusus (string kosong = tanpa shift / ikut default)
+  const [editShift, setEditShift] = useState('');
+  const [editWork, setEditWork] = useState('');
+  const [shifts, setShifts] = useState<WorkShift[]>([]);
+  const [query, setQuery] = useState('');
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [editSaving, setEditSaving] = useState(false);
@@ -110,6 +124,14 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
     onChanged();
   };
 
+  useEffect(() => {
+    AttendanceService.getShifts(currentAdmin.companyId || undefined)
+      .then(setShifts)
+      .catch(() => setShifts([]));
+  }, [currentAdmin.companyId]);
+
+  const shiftById = (id?: string | null) => shifts.find((s) => s.id === id) || null;
+
   const openEdit = (item: UserProfile) => {
     select();
     setEditing(item);
@@ -117,6 +139,8 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
     setEditDept(item.department || '');
     setEditPassword('');
     setEditQuota(String(item.leaveQuota ?? DEFAULT_LEAVE_QUOTA));
+    setEditShift(item.shiftId || '');
+    setEditWork(item.workMinutes ? String(item.workMinutes) : '');
     setShowEditPassword(false);
     setEditError(null);
   };
@@ -145,6 +169,21 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
       password: editPassword.trim() || undefined,
       leaveQuota: quota,
     });
+    if (success) {
+      try {
+        // shift hanya milik divisi baru; pindah divisi melepas shift lama
+        const keepShift = shiftById(editShift)?.department === (editDept.trim() || 'None') ? editShift : '';
+        if ((editing.shiftId || '') !== keepShift) await AttendanceService.setUserShift(editing.id, keepShift || null);
+        const wm = editWork ? Number(editWork) : null;
+        if ((editing.workMinutes ?? null) !== wm) await AttendanceService.setUserWorkMinutes(editing.id, wm);
+      } catch (e: any) {
+        setEditSaving(false);
+        fail();
+        setEditError('Data akun tersimpan, tetapi shift/lama kerja gagal disimpan: ' + (e?.message || e));
+        onChanged();
+        return;
+      }
+    }
     setEditSaving(false);
     if (!success) {
       fail();
@@ -213,6 +252,18 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
   };
 
   const employees = users.filter((u) => u.role === 'employee');
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? employees.filter((u) => [u.fullName, u.email, u.department].some((v) => (v || '').toLowerCase().includes(q)))
+    : employees;
+
+  const shiftInfo = (u: UserProfile) => {
+    const s = shiftById(u.shiftId);
+    const end = s ? (u.workMinutes ? addMinutes(s.startTime, u.workMinutes) : s.endTime) : null;
+    const parts = [s ? s.name + ' ' + s.startTime + '-' + end : 'Jam kantor'];
+    if (u.workMinutes) parts.push(u.workMinutes / 60 + ' jam');
+    return parts.join(' · ');
+  };
 
   return (
     <View style={styles.container}>
@@ -290,10 +341,30 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
         subtitle="Kelola data, reset kunci perangkat, atau hapus akun"
         icon="users"
       >
+        {employees.length > 0 && (
+          <View style={styles.searchBox}>
+            <Feather name="search" size={15} color={colors.muted} />
+            <TextInput
+              style={styles.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Cari nama, email, atau departemen"
+              placeholderTextColor={colors.faint}
+              accessibilityLabel="Cari karyawan"
+            />
+            {query ? (
+              <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Hapus pencarian">
+                <Feather name="x" size={15} color={colors.muted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
         {employees.length === 0 ? (
           <Text style={styles.emptyText}>Belum ada akun karyawan.</Text>
+        ) : shown.length === 0 ? (
+          <Text style={styles.emptyText}>Tidak ada karyawan yang cocok dengan "{query}".</Text>
         ) : (
-          employees.map((item) => (
+          shown.map((item) => (
             <View key={item.id} style={styles.userRow}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
@@ -304,6 +375,10 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
                 <Text style={styles.userName}>{item.fullName}</Text>
                 <Text style={styles.userEmail}>{item.email}</Text>
                 <Text style={styles.userEmail}>{item.department || 'Staff'}</Text>
+                <View style={styles.shiftTag}>
+                  <Feather name="clock" size={11} color={colors.primaryDark} />
+                  <Text style={styles.shiftTagText}>{shiftInfo(item)}</Text>
+                </View>
                 <View style={styles.passwordRow}>
                   <Text style={styles.passwordLabel}>Sandi: </Text>
                   <Text style={styles.passwordVal}>
@@ -385,6 +460,37 @@ export const AdminEmployeeManager: React.FC<AdminEmployeeManagerProps> = ({
           onDepartmentsChange={setDepartments}
           placeholder="Pilih departemen"
         />
+        <Text style={[styles.label, { marginTop: 12 }]}>Shift kerja</Text>
+        <SelectDropdown
+          options={[
+            { value: '', label: 'Tanpa shift (jam kantor)' },
+            ...shifts
+              .filter((s) => s.department === (editDept.trim() || 'None'))
+              .map((s) => ({ value: s.id, label: s.name + ' ' + s.startTime + '-' + s.endTime })),
+          ]}
+          value={shiftById(editShift)?.department === (editDept.trim() || 'None') ? editShift : ''}
+          onChange={setEditShift}
+          icon="clock"
+          placeholder="Tanpa shift (jam kantor)"
+          accessibilityLabel="Shift kerja"
+        />
+        <Text style={styles.hint}>Hanya shift milik divisi karyawan. Buat jam shift baru di menu Shift Kerja.</Text>
+
+        <Text style={[styles.label, { marginTop: 12 }]}>Lama kerja</Text>
+        <SelectDropdown
+          options={WORK_OPTIONS}
+          value={editWork}
+          onChange={setEditWork}
+          icon="watch"
+          accessibilityLabel="Lama kerja"
+        />
+        <Text style={styles.hint}>
+          {editWork
+            ? 'Jam masuk & batas telat tetap, jam pulang = jam masuk + ' + Number(editWork) / 60 + ' jam' +
+              (shiftById(editShift) ? ' (pulang ' + addMinutes(shiftById(editShift)!.startTime, Number(editWork)) + ').' : '.')
+            : 'Mengikuti jam pulang shift / jam kantor.'}
+        </Text>
+
         <Text style={[styles.label, { marginTop: 12 }]}>Kuota cuti per tahun (hari)</Text>
         <TextInput
           style={styles.input}
@@ -546,6 +652,16 @@ const styles = StyleSheet.create({
   },
   userInfo: { flex: 1, minWidth: 170 },
   userActions: { flexDirection: 'row', marginLeft: 'auto' },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingHorizontal: 10, marginBottom: 10, backgroundColor: colors.surface,
+  },
+  searchInput: { flex: 1, paddingVertical: 9, fontSize: fontSize.sm, color: colors.ink },
+  shiftTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 4,
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: colors.primarySoft,
+  },
+  shiftTagText: { fontSize: 11, fontWeight: '600', color: colors.primaryDark },
   userRow: {
     flexWrap: 'wrap',
     rowGap: 6,

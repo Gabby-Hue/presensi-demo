@@ -1,7 +1,8 @@
 import { AttendanceRecord, OfficeSettings, UserProfile, WorkShift } from '../types/attendance';
 import { isWeekendDateString } from './dates';
 import { isNationalHoliday } from './holidays';
-import { isOvernight, shiftIdFor, weekdayOf } from './shifts';
+import { isOvernight, shiftIdFor, weekdayOf, withWorkMinutes } from './shifts';
+import { addMinutes } from './time';
 
 export const DEFAULT_LEAVE_QUOTA = 12;
 
@@ -16,7 +17,7 @@ export interface DaySchedule {
   workday: boolean;
 }
 
-type ShiftUser = Pick<UserProfile, 'shiftId' | 'shiftSchedule'>;
+type ShiftUser = Pick<UserProfile, 'shiftId' | 'shiftSchedule'> & { workMinutes?: number | null };
 
 export function scheduleFor(
   user: ShiftUser,
@@ -25,17 +26,19 @@ export function scheduleFor(
   office?: Pick<OfficeSettings, 'workStartTime' | 'workEndTime' | 'lateDeadline'>
 ): DaySchedule {
   const id = shiftIdFor(user, date, shifts);
-  const shift = (id && shifts.find((s) => s.id === id)) || null;
+  const found = (id && shifts.find((s) => s.id === id)) || null;
+  const shift = found ? withWorkMinutes(found, user.workMinutes) : null;
   // Jadwal per hari yang eksplisit memasang shift di akhir pekan/libur = hari kerja biasa, bukan lembur.
-  const explicit = !!shift && user.shiftSchedule?.[String(weekdayOf(date))] === shift.id;
+  const explicit = !!found && user.shiftSchedule?.[String(weekdayOf(date))] === found.id;
   const workday = explicit || (!isWeekendDateString(date) && !isNationalHoliday(date));
   if (shift) {
     return { name: shift.name, start: shift.startTime, end: shift.endTime, late: shift.lateDeadline, overnight: isOvernight(shift), workday };
   }
+  const officeStart = office?.workStartTime || '08:00';
   return {
     name: 'Jam kantor',
-    start: office?.workStartTime || '08:00',
-    end: office?.workEndTime || '17:00',
+    start: officeStart,
+    end: user.workMinutes ? addMinutes(officeStart, user.workMinutes) : office?.workEndTime || '17:00',
     late: office?.lateDeadline || '10:00',
     overnight: false,
     workday,

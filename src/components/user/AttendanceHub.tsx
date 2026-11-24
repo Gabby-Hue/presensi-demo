@@ -45,6 +45,7 @@ import { succeed, fail, select } from '../../services/feedbackService';
 import { isWeekendDateString, isAfterTimeOfDay, todayWIB, getInitials } from '../../utils/dates';
 import { resolveWorkDay, isOvernight, isLateForShift, isClockOutOpenForShift } from '../../utils/shifts';
 import { NotificationBell } from '../ui/NotificationBell';
+import { addMinutes } from '../../utils/time';
 import { DEFAULT_LEAVE_QUOTA, leaveDaysUsed, lateMinutes, scheduleFor } from '../../utils/payroll';
 import { getHolidayName, isNationalHoliday } from '../../utils/holidays';
 import { printAttendanceSlip } from '../../services/exportService';
@@ -367,7 +368,10 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
 
   // Karyawan dengan shift memakai jam shift; selain itu jam kantor terdekat.
   const workStartStr = myShift?.startTime || nearestOffice?.workStartTime || '08:00';
-  const workEndStr = myShift?.endTime || nearestOffice?.workEndTime || '17:00';
+  const workEndStr =
+    myShift?.endTime ||
+    (user.workMinutes ? addMinutes(nearestOffice?.workStartTime || '08:00', user.workMinutes) : nearestOffice?.workEndTime) ||
+    '17:00';
   const lateDeadStr = myShift?.lateDeadline || nearestOffice?.lateDeadline || '10:00';
 
   const { h: lateH, m: lateM } = parseHourMinute(lateDeadStr, 10, 0);

@@ -43,6 +43,8 @@ export interface UserProfile {
   shiftSchedule?: Record<string, string | null> | null;
   /** Jatah cuti (izin) per tahun dalam hari. Kosong = default 12. */
   leaveQuota?: number | null;
+  /** Lama kerja khusus dalam menit (mis. 600 = 10 jam). Kosong = ikut shift / jam kantor. */
+  workMinutes?: number | null;
 }
 
 export interface WorkShift {

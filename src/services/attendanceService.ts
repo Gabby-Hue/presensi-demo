@@ -55,6 +55,7 @@ function mapUser(u: any): UserProfile {
     shiftId: u.shift_id != null ? String(u.shift_id) : null,
     shiftSchedule: u.shift_schedule || null,
     leaveQuota: u.leave_quota ?? null,
+    workMinutes: u.work_minutes ?? null,
   };
 }
 
@@ -1308,6 +1309,11 @@ export class AttendanceService {
 
   static async setUserShiftSchedule(userId: string, schedule: Record<string, string | null> | null): Promise<void> {
     const { error } = await supabase.from('profiles').update({ shift_schedule: schedule }).eq('id', userId);
+    if (error) throw error;
+  }
+
+  static async setUserWorkMinutes(userId: string, minutes: number | null): Promise<void> {
+    const { error } = await supabase.from('profiles').update({ work_minutes: minutes }).eq('id', userId);
     if (error) throw error;
   }
 

@@ -46,6 +46,9 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
   const [reassignTarget, setReassignTarget] = useState<string>('');
   // Karyawan yang dicentang untuk dipindah + kata kunci pencarian
   const [pickedIds, setPickedIds] = useState<string[]>([]);
+  // Pencarian & departemen yang dibuka untuk melihat anggotanya
+  const [deptQuery, setDeptQuery] = useState('');
+  const [openDeptId, setOpenDeptId] = useState<string | null>(null);
   const [staffQuery, setStaffQuery] = useState('');
   const [reassigning, setReassigning] = useState(false);
 
@@ -344,16 +347,61 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
             <Text style={styles.emptyText}>Belum ada departemen yang terdaftar.</Text>
           </View>
         ) : (
-          departments.map((dept) => {
+          <>
+          <View style={[styles.searchBox, { marginBottom: 10 }]}>
+            <Feather name="search" size={15} color={colors.muted} />
+            <TextInput
+              style={styles.searchInput}
+              value={deptQuery}
+              onChangeText={setDeptQuery}
+              placeholder="Cari departemen atau nama karyawan"
+              placeholderTextColor={colors.faint}
+              accessibilityLabel="Cari departemen"
+            />
+            {deptQuery ? (
+              <TouchableOpacity onPress={() => setDeptQuery('')} hitSlop={8} accessibilityLabel="Hapus pencarian">
+                <Feather name="x" size={15} color={colors.muted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {(() => {
+            const q = deptQuery.trim().toLowerCase();
+            const membersOf = (name: string) =>
+              users.filter((u) => u.role === 'employee' && (u.department || '').trim().toLowerCase() === name.trim().toLowerCase());
+            const list = q
+              ? departments.filter(
+                  (d) => d.name.toLowerCase().includes(q) || membersOf(d.name).some((u) => u.fullName.toLowerCase().includes(q))
+                )
+              : departments;
+            if (list.length === 0) return <Text style={styles.emptyText}>Tidak ada departemen yang cocok dengan "{deptQuery}".</Text>;
+            return list.map((dept) => {
             const hasEmployees = dept.employeeCount > 0;
+            // saat mencari nama karyawan, buka departemennya otomatis
+            const matchByMember = !!q && !dept.name.toLowerCase().includes(q);
+            const isOpen = openDeptId === dept.id || matchByMember;
+            const members = membersOf(dept.name);
             return (
-              <View key={dept.id} style={styles.deptRow}>
+              <View key={dept.id} style={styles.deptBlock}>
+              <View style={styles.deptRow}>
                 <View style={styles.deptIconBadge}>
                   <Feather name="briefcase" size={18} color={colors.primary} />
                 </View>
 
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.deptName}>{dept.name}</Text>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    select();
+                    setOpenDeptId(isOpen ? null : dept.id);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isOpen }}
+                  accessibilityLabel={'Lihat anggota ' + dept.name}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.deptName}>{dept.name}</Text>
+                    <Feather name={isOpen ? 'chevron-up' : 'chevron-down'} size={15} color={colors.muted} />
+                  </View>
                   <View style={styles.deptMetaRow}>
                     <View
                       style={[
@@ -377,7 +425,7 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.actionsRow}>
                   {/* Tombol Reassign Karyawan */}
@@ -419,8 +467,36 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
                   </TouchableOpacity>
                 </View>
               </View>
+              {isOpen && (
+                <View style={styles.memberList}>
+                  {members.length === 0 ? (
+                    <Text style={styles.memberEmpty}>Belum ada karyawan di departemen ini.</Text>
+                  ) : (
+                    members
+                      .slice()
+                      .sort((a, b) => a.fullName.localeCompare(b.fullName))
+                      .map((u) => {
+                        const hit = !!q && u.fullName.toLowerCase().includes(q);
+                        return (
+                          <View key={u.id} style={[styles.memberRow, hit && styles.memberRowHit]}>
+                            <View style={styles.memberAvatar}>
+                              <Text style={styles.memberAvatarText}>{u.fullName.substring(0, 2).toUpperCase()}</Text>
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={styles.memberName} numberOfLines={1}>{u.fullName}</Text>
+                              <Text style={styles.memberEmail} numberOfLines={1}>{u.email}</Text>
+                            </View>
+                          </View>
+                        );
+                      })
+                  )}
+                </View>
+              )}
+              </View>
             );
-          })
+          });
+          })()}
+          </>
         )}
       </Card>
 
@@ -735,6 +811,15 @@ export const AdminDepartmentManager: React.FC<AdminDepartmentManagerProps> = ({
 };
 
 const styles = StyleSheet.create({
+  deptBlock: {},
+  memberList: { marginLeft: 46, marginBottom: 10, borderLeftWidth: 2, borderLeftColor: colors.primarySoft, paddingLeft: 10, gap: 2 },
+  memberEmpty: { fontSize: fontSize.xs, color: colors.muted, fontStyle: 'italic', paddingVertical: 6 },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 6, borderRadius: radius.sm },
+  memberRowHit: { backgroundColor: colors.primarySoft },
+  memberAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
+  memberAvatarText: { fontSize: 10, fontWeight: '800', color: colors.primaryDark },
+  memberName: { fontSize: fontSize.sm, fontWeight: '600', color: colors.ink },
+  memberEmail: { fontSize: 11, color: colors.muted },
   pickHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   pickAllText: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },
   searchBox: {

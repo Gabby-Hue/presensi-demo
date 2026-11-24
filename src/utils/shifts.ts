@@ -1,5 +1,13 @@
 import { UserProfile, WorkShift } from '../types/attendance';
 import { todayWIB } from './dates';
+import { addMinutes } from './time';
+
+type ShiftUser = Pick<UserProfile, 'shiftId' | 'shiftSchedule'> & { workMinutes?: number | null };
+
+/** Lama kerja khusus (mis. satpam 12 jam): jam pulang = jam masuk + workMinutes, jam masuk & batas telat tetap. */
+export function withWorkMinutes(s: WorkShift, workMinutes?: number | null): WorkShift {
+  return workMinutes ? { ...s, endTime: addMinutes(s.startTime, workMinutes) } : s;
+}
 
 /** Jadwal mingguan: kunci "0" (Minggu) … "6" (Sabtu) -> id shift, null = jam kantor. Hari tanpa kunci ikut shift tetap. */
 export type ShiftSchedule = Record<string, string | null>;
@@ -52,13 +60,16 @@ const OVERNIGHT_GRACE_MIN = 6 * 60;
  * (jam selesai + tenggang, dan belum masuk jam mulai shift hari ini) tetap dihitung tanggal kemarin.
  */
 export function resolveWorkDay(
-  user: Pick<UserProfile, 'shiftId' | 'shiftSchedule'>,
+  user: ShiftUser,
   shifts: WorkShift[],
   now: Date = new Date(),
   /** Apakah tanggal itu punya presensi masuk tanpa pulang. Tanpa info ini dianggap ya. */
   hasOpenSession: (date: string) => boolean = () => true
 ): { date: string; shift: WorkShift | null; minutesSinceStart: number | null } {
-  const byId = (id: string | null) => (id && shifts.find((s) => s.id === id)) || null;
+  const byId = (id: string | null) => {
+    const s = (id && shifts.find((x) => x.id === id)) || null;
+    return s ? withWorkMinutes(s, user.workMinutes) : null;
+  };
   const today = todayWIB(now);
   const yesterday = todayWIB(new Date(now.getTime() - 24 * 3600e3));
   const nowMin = wibMinutes(now);
