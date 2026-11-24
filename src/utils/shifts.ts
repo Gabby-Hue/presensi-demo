@@ -21,10 +21,21 @@ export function weekdayOf(dateStr: string): number {
   return new Date(dateStr + 'T00:00:00Z').getUTCDay();
 }
 
-export function shiftIdFor(user: Pick<UserProfile, 'shiftId' | 'shiftSchedule'>, dateStr: string): string | null {
+/**
+ * Id shift yang berlaku di tanggal itu. Bila `shifts` diberikan, entri jadwal yang menunjuk shift
+ * yang sudah dihapus diabaikan (kembali ke shift tetap).
+ */
+export function shiftIdFor(
+  user: Pick<UserProfile, 'shiftId' | 'shiftSchedule'>,
+  dateStr: string,
+  shifts?: WorkShift[]
+): string | null {
   const key = String(weekdayOf(dateStr));
   const sched = user.shiftSchedule;
-  if (sched && key in sched) return sched[key];
+  if (sched && key in sched) {
+    const v = sched[key];
+    if (v === null || !shifts || shifts.some((s) => s.id === v)) return v;
+  }
   return user.shiftId ?? null;
 }
 
@@ -43,19 +54,23 @@ const OVERNIGHT_GRACE_MIN = 6 * 60;
 export function resolveWorkDay(
   user: Pick<UserProfile, 'shiftId' | 'shiftSchedule'>,
   shifts: WorkShift[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  /** Apakah tanggal itu punya presensi masuk tanpa pulang. Tanpa info ini dianggap ya. */
+  hasOpenSession: (date: string) => boolean = () => true
 ): { date: string; shift: WorkShift | null; minutesSinceStart: number | null } {
   const byId = (id: string | null) => (id && shifts.find((s) => s.id === id)) || null;
   const today = todayWIB(now);
   const yesterday = todayWIB(new Date(now.getTime() - 24 * 3600e3));
   const nowMin = wibMinutes(now);
-  const todayShift = byId(shiftIdFor(user, today));
-  const prev = byId(shiftIdFor(user, yesterday));
+  const todayShift = byId(shiftIdFor(user, today, shifts));
+  const prev = byId(shiftIdFor(user, yesterday, shifts));
 
   if (prev && isOvernight(prev)) {
-    let cutoff = toMin(prev.endTime) + OVERNIGHT_GRACE_MIN;
+    const end = toMin(prev.endTime);
+    let cutoff = end + OVERNIGHT_GRACE_MIN;
     if (todayShift) cutoff = Math.min(cutoff, toMin(todayShift.startTime));
-    if (nowMin < cutoff) {
+    // Sebelum jam selesai pasti masih shift kemarin; masa tenggang hanya bila sesi kemarin belum ditutup.
+    if (nowMin < end || (nowMin < cutoff && hasOpenSession(yesterday))) {
       return { date: yesterday, shift: prev, minutesSinceStart: nowMin + 1440 - toMin(prev.startTime) };
     }
   }

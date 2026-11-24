@@ -96,6 +96,11 @@ export function buildRekap(
       const end = new Date(eDate);
       while (curr <= end) {
         const curDateStr = curr.toISOString().slice(0, 10);
+        // Sama dengan payroll & kuota: akhir pekan/libur di dalam rentang izin tidak dihitung izin.
+        if (isWeekendDateString(curDateStr) || isNationalHoliday(curDateStr)) {
+          curr.setDate(curr.getDate() + 1);
+          continue;
+        }
         const key = `${r.userId}__${curDateStr}`;
         const arr = groups.get(key) || [];
         arr.push({ ...r, date: curDateStr });
@@ -103,9 +108,11 @@ export function buildRekap(
         curr.setDate(curr.getDate() + 1);
       }
     } else {
-      const key = `${r.userId}__${r.date}`;
+      // Pengajuan (izin/lembur/telat) dicatat di tanggal yang diajukan, bukan tanggal kirim.
+      const day = r.sessionType === 'izin_sakit' && sDate ? sDate : r.date;
+      const key = `${r.userId}__${day}`;
       const arr = groups.get(key) || [];
-      arr.push(r);
+      arr.push(day === r.date ? r : { ...r, date: day });
       groups.set(key, arr);
     }
   }

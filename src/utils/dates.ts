@@ -9,7 +9,8 @@ export function isWeekendDateString(dateStr: string): boolean {
 
 /** Lewat deadline jam (h, m) — presisi sekond: 10:00:15 > 10:00:00. Date/timestamp input, local WIB. */
 export function isAfterTimeOfDay(d: Date, h: number, m: number): boolean {
-  return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds() > h * 3600 + m * 60;
+  const w = new Date(d.getTime() + 7 * 3600 * 1000); // jam WIB, apa pun zona waktu perangkat
+  return w.getUTCHours() * 3600 + w.getUTCMinutes() * 60 + w.getUTCSeconds() > h * 3600 + m * 60;
 }
 
 /** Tanggal lokal (WIB / UTC+7) sebagai YYYY-MM-DD — aman di server atau perangkat zona waktu mana pun. */

@@ -355,10 +355,14 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
   };
 
   // Shift hari ini (jadwal mingguan > shift tetap). Shift malam: setelah tengah malam masih tanggal kemarin.
-  const workDay = resolveWorkDay(user, companyShifts, currentTime);
+  // Sesi masuk tanpa pulang pada tanggal tsb (untuk masa tenggang shift malam).
+  const hasOpenSession = (date: string) =>
+    userHistory.some((r) => r.date === date && r.sessionType === 'masuk') &&
+    !userHistory.some((r) => r.date === date && r.sessionType === 'pulang');
+  const workDay = resolveWorkDay(user, companyShifts, currentTime, hasOpenSession);
   const myShift = workDay.shift;
   const nightShift = myShift && isOvernight(myShift) ? myShift : null;
-  const sinceStart = (d: Date) => resolveWorkDay(user, companyShifts, d).minutesSinceStart ?? 0;
+  const sinceStart = (d: Date) => resolveWorkDay(user, companyShifts, d, hasOpenSession).minutesSinceStart ?? 0;
 
   // Karyawan dengan shift memakai jam shift; selain itu jam kantor terdekat.
   const workStartStr = myShift?.startTime || nearestOffice?.workStartTime || '08:00';
@@ -427,16 +431,14 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
     ? !!todayMasuk
     : nightShift
     ? isClockOutOpenForShift(nightShift, sinceStart(currentTime))
-    : isAfterTimeOfDay(currentTime, effectiveEndH, effectiveEndM) ||
-      (currentTime.getHours() === effectiveEndH && currentTime.getMinutes() >= effectiveEndM) ||
-      currentTime.getHours() > effectiveEndH;
+    : currentTime.getTime() >= Date.parse(todayStr + 'T00:00:00+07:00') + (effectiveEndH * 60 + effectiveEndM) * 60e3;
 
   // Countdown jam pulang menuju jam pulang kantor atau jam pulang izin setengah hari
   const getClockOutCountdown = () => {
     if (isClockOutUnlocked || isLemburDay) return '';
-    const target = new Date(currentTime);
-    target.setHours(effectiveEndH, effectiveEndM, 0, 0);
-    if (nightShift && target <= currentTime) target.setDate(target.getDate() + 1);
+    // Jam pulang dalam WIB pada tanggal kerja (shift malam: keesokan harinya).
+    let target = new Date(Date.parse(todayStr + 'T00:00:00+07:00') + (effectiveEndH * 60 + effectiveEndM) * 60e3);
+    if (nightShift && target <= currentTime) target = new Date(target.getTime() + 24 * 3600e3);
     const diffMs = Math.max(0, target.getTime() - currentTime.getTime());
     const h = Math.floor(diffMs / (1000 * 60 * 60));
     const m = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -464,8 +466,8 @@ export const AttendanceHub: React.FC<AttendanceHubProps> = ({
 
   const lateCount = monthAllRecords.filter((r) => {
     if (r.sessionType !== 'masuk') return false;
-    const d = safeParseDate(r.clockInTime);
-    return d ? isAfterTimeOfDay(d, lateH, lateM) : false;
+    if (!r.clockInTime) return false;
+    return lateMinutes(r.clockInTime, r.date, scheduleFor(user, r.date, companyShifts, nearestOffice || undefined)) > 0;
   }).length;
 
   const leaveCount = monthAllRecords.filter((r) => {
@@ -1555,7 +1557,7 @@ Apakah Anda sedang dinas luar atau tugas lapangan?`,
             onBack={() => setLeaveViewMode('list')}
             loading={submitting}
             leaveQuota={user.leaveQuota ?? DEFAULT_LEAVE_QUOTA}
-            leaveUsed={leaveDaysUsed(userHistory, user.id, Number(todayWIB().slice(0, 4)), true)}
+            leaveUsedFor={(year) => leaveDaysUsed(userHistory, user.id, year, true)}
           />
         </View>
       );

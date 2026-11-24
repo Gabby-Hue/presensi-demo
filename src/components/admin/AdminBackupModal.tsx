@@ -162,7 +162,7 @@ export const AdminBackupModal: React.FC<AdminBackupModalProps> = ({
 
   const exportRows = useMemo(() => {
     return buildRekap(filteredEmployees, filteredRecords, undefined, { shifts, offices });
-  }, [filteredEmployees, filteredRecords]);
+  }, [filteredEmployees, filteredRecords, shifts, offices]);
 
   const searchedEmployees = useMemo(() => {
     if (!employeeSearchQuery.trim()) return employeeList;

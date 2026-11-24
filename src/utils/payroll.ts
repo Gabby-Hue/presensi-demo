@@ -24,10 +24,10 @@ export function scheduleFor(
   shifts: WorkShift[],
   office?: Pick<OfficeSettings, 'workStartTime' | 'workEndTime' | 'lateDeadline'>
 ): DaySchedule {
-  const id = shiftIdFor(user, date);
+  const id = shiftIdFor(user, date, shifts);
   const shift = (id && shifts.find((s) => s.id === id)) || null;
   // Jadwal per hari yang eksplisit memasang shift di akhir pekan/libur = hari kerja biasa, bukan lembur.
-  const explicit = !!shift && !!user.shiftSchedule && String(weekdayOf(date)) in user.shiftSchedule;
+  const explicit = !!shift && user.shiftSchedule?.[String(weekdayOf(date))] === shift.id;
   const workday = explicit || (!isWeekendDateString(date) && !isNationalHoliday(date));
   if (shift) {
     return { name: shift.name, start: shift.startTime, end: shift.endTime, late: shift.lateDeadline, overnight: isOvernight(shift), workday };
@@ -80,7 +80,8 @@ function eachDate(start: string, end: string, fn: (d: string) => void) {
  * includePending: hitung juga pengajuan yang belum diputus (untuk mencegah pengajuan melebihi kuota).
  */
 export function leaveDaysUsed(records: AttendanceRecord[], userId: string, year: number, includePending = false): number {
-  let used = 0;
+  // Per tanggal unik: izin yang tumpang tindih tidak memotong kuota dua kali.
+  const byDate = new Map<string, number>();
   for (const r of records) {
     if (r.userId !== userId || !isLeaveRecord(r) || isSickRecord(r)) continue;
     if (r.approvalStatus === 'rejected' || (!includePending && r.approvalStatus === 'pending')) continue;
@@ -89,10 +90,35 @@ export function leaveDaysUsed(records: AttendanceRecord[], userId: string, year:
     if (!start || !end) continue;
     const per = isHalfDay(r) ? 0.5 : 1;
     eachDate(start, end, (d) => {
-      if (d.startsWith(String(year)) && !isWeekendDateString(d) && !isNationalHoliday(d)) used += per;
+      if (d.startsWith(String(year)) && !isWeekendDateString(d) && !isNationalHoliday(d)) {
+        byDate.set(d, Math.max(byDate.get(d) || 0, per));
+      }
     });
   }
+  let used = 0;
+  byDate.forEach((v) => (used += v));
   return used;
+}
+
+/**
+ * Cek kuota untuk rentang izin yang mungkin melewati pergantian tahun.
+ * Mengembalikan pesan bila kuota salah satu tahun tidak cukup, selain itu null.
+ */
+export function checkLeaveQuota(
+  start: string,
+  end: string,
+  halfDay: boolean,
+  quota: number,
+  usedInYear: (year: number) => number
+): string | null {
+  for (let y = Number(start.slice(0, 4)); y <= Number(end.slice(0, 4)); y++) {
+    const s = start > y + '-01-01' ? start : y + '-01-01';
+    const e = end < y + '-12-31' ? end : y + '-12-31';
+    const need = countLeaveDays(s, e, halfDay);
+    const left = Math.max(0, quota - usedInYear(y));
+    if (need > left) return 'Pengajuan ini butuh ' + need + ' hari di tahun ' + y + ', sisa kuota cuti Anda ' + left + ' hari. Hubungi admin bila perlu tambahan.';
+  }
+  return null;
 }
 
 /** Jumlah hari kerja (bukan akhir pekan/libur) dalam rentang izin, untuk validasi kuota sebelum mengajukan. */
@@ -186,7 +212,7 @@ export function buildPayroll(
               if (!sched.workday) row.jamLembur += hours;
             }
           }
-        } else if (leave && sched.workday) {
+        } else if (leave && sched.workday && counted) {
           row[leave]++;
         } else if (sched.workday && counted && d < today) {
           row.alpha++;

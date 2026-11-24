@@ -962,12 +962,22 @@ export class AttendanceService {
       }
       if (params?.limit) {
         query = query.limit(params.limit);
+        const { data, error } = await query;
+        if (error) throw error;
+        return (data || []).map(mapRecord);
       }
-      const { data, error } = await query;
-      if (!error && data) {
-        return data.map(mapRecord);
+      const PAGE = 1000;
+      const all: any[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await query.range(from, from + PAGE - 1);
+        if (error) throw error;
+        all.push(...(data || []));
+        if (!data || data.length < PAGE) break;
       }
-    } catch {}
+      return all.map(mapRecord);
+    } catch (e) {
+      console.warn('getAllAttendances gagal', e);
+    }
     return [];
   }
 

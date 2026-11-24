@@ -20,7 +20,7 @@ import { colors, fontSize, radius, spacing } from '../../theme';
 import { select } from '../../services/feedbackService';
 import { todayWIB } from '../../utils/dates';
 import { DEFAULT_PROJECTS } from '../../services/activityService';
-import { countLeaveDays } from '../../utils/payroll';
+import { checkLeaveQuota } from '../../utils/payroll';
 
 const CAL_MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -66,7 +66,7 @@ interface LeaveRequestFormProps {
   loading?: boolean;
   /** Kuota cuti tahunan & yang sudah terpakai (termasuk pengajuan menunggu). */
   leaveQuota?: number;
-  leaveUsed?: number;
+  leaveUsedFor?: (year: number) => number;
 }
 
 export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
@@ -75,8 +75,9 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
   onBack,
   loading = false,
   leaveQuota,
-  leaveUsed = 0,
+  leaveUsedFor = () => 0,
 }) => {
+  const leaveUsed = leaveUsedFor(Number(todayWIB().slice(0, 4)));
   const today = todayWIB();
   const [leaveCategory, setLeaveCategory] = useState<'izin' | 'sakit' | 'lembur' | 'telat'>(initialCategory);
   const [durationMode, setDurationMode] = useState<'full' | 'half'>('full');
@@ -221,10 +222,11 @@ export const LeaveRequestForm: React.FC<LeaveRequestFormProps> = ({
     }
 
     if (leaveCategory === 'izin' && leaveQuota != null) {
-      const need = countLeaveDays(startDate, durationMode === 'half' ? startDate : endDate, durationMode === 'half');
-      const left = Math.max(0, leaveQuota - leaveUsed);
-      if (need > left) {
-        Alert.alert('Kuota Cuti Tidak Cukup', 'Pengajuan ini butuh ' + need + ' hari, sisa kuota cuti Anda ' + left + ' hari. Hubungi admin bila perlu tambahan.');
+      const quotaError = checkLeaveQuota(
+        startDate, durationMode === 'half' ? startDate : endDate, durationMode === 'half', leaveQuota, leaveUsedFor
+      );
+      if (quotaError) {
+        Alert.alert('Kuota Cuti Tidak Cukup', quotaError);
         return;
       }
     }

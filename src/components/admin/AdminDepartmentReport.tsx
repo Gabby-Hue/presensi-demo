@@ -264,6 +264,10 @@ export const AdminDepartmentReport: React.FC<AdminDepartmentReportProps> = ({ us
   // Rekap payroll bulanan: offset 0 = bulan ini, -1 = bulan lalu
   const exportPayroll = (offset: 0 | -1) => {
     if (!guardWeb('Rekap Payroll')) return;
+    if (loading) {
+      Alert.alert('Rekap Payroll', 'Data presensi masih dimuat. Coba lagi sebentar lagi.');
+      return;
+    }
     const today = todayWIB();
     const d = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1 + offset, 1));
     const ym = d.toISOString().slice(0, 7);
