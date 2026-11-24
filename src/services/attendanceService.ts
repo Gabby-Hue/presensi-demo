@@ -1289,6 +1289,17 @@ export class AttendanceService {
     return mapShift(data);
   }
 
+  static async updateShift(id: string, s: Pick<WorkShift, 'name' | 'startTime' | 'endTime' | 'lateDeadline'>): Promise<WorkShift> {
+    const { data, error } = await supabase
+      .from('shifts')
+      .update({ name: s.name, start_time: s.startTime, end_time: s.endTime, late_deadline: s.lateDeadline })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return mapShift(data);
+  }
+
   static async deleteShift(id: string): Promise<void> {
     // profiles.shift_id otomatis NULL (ON DELETE SET NULL) -> karyawan kembali ke jam kantor
     const { error } = await supabase.from('shifts').delete().eq('id', id);

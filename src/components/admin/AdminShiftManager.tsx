@@ -45,6 +45,8 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
   // Divisi yang baru ditambahkan admin (belum punya jam shift) agar tetap tampil.
   const [addedDepts, setAddedDepts] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
+  // id shift yang sedang diedit (null = form tambah)
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ type: 'shift'; shift: WorkShift } | { type: 'dept'; dept: string } | null>(null);
 
   const load = async () => {
@@ -91,6 +93,21 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
     setBusy(true);
     setFormError(null);
     try {
+      if (editingId) {
+        const updated = await AttendanceService.updateShift(editingId, {
+          name,
+          startTime: form.start,
+          endTime: form.end,
+          lateDeadline: form.late,
+        });
+        setShifts((list) => list.map((s) => (s.id === updated.id ? updated : s)));
+        setEditingId(null);
+        setForm(emptyForm);
+        setFormOpen(false);
+        succeed();
+        onChanged();
+        return;
+      }
       const created = await AttendanceService.addShift({
         companyId: companyId || null,
         department: dept,
@@ -105,7 +122,7 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
       succeed();
     } catch (e: any) {
       fail();
-      setFormError(e?.message || 'Gagal menambah shift.');
+      setFormError(e?.message || (editingId ? 'Gagal menyimpan perubahan shift.' : 'Gagal menambah shift.'));
     } finally {
       setBusy(false);
     }
@@ -223,12 +240,8 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
   const membersOf = (s: WorkShift) =>
     users.filter((u) => u.role === 'employee' && shiftIdFor({ shiftId: shiftOf(u), shiftSchedule: scheduleOf(u) }, today) === s.id);
 
-  const shiftLabel = (s: WorkShift, dept: string) => (s.department === dept ? s.name : s.name + ' (' + s.department + ')');
-  // Shift departemen sendiri dulu, lalu shift departemen lain.
-  const shiftsFor = (dept: string) => [
-    ...shifts.filter((s) => s.department === dept),
-    ...shifts.filter((s) => s.department !== dept),
-  ];
+  // Karyawan hanya bisa memakai shift divisinya sendiri.
+  const shiftsFor = (dept: string) => shifts.filter((s) => s.department === dept);
 
   const renderChips = (
     dept: string,
@@ -236,19 +249,20 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
     onPick: (id: string | null | undefined) => void,
     withDefault: boolean
   ) => {
-    const known = current == null || shifts.some((s) => s.id === current);
+    const own = shiftsFor(dept);
+    // shift yang sudah dihapus / milik divisi lain dianggap belum dipilih
+    const known = current == null || own.some((s) => s.id === current);
+    const cleared = withDefault ? undefined : null; // klik lagi chip aktif = lepas
     const opts: { id: string | null | undefined; name: string }[] = [
       ...(withDefault ? [{ id: undefined, name: 'Ikut shift tetap' }] : []),
-      { id: null, name: 'Jam kantor' },
-      ...shiftsFor(dept).map((s) => ({ id: s.id, name: shiftLabel(s, dept) })),
+      ...own.map((s) => ({ id: s.id, name: s.name + ' ' + s.startTime + '-' + s.endTime })),
     ];
     return (
       <View style={styles.chips}>
         {opts.map((o) => {
-          // shift yang sudah dihapus: hari itu ikut shift tetap (di jadwal) / jam kantor (shift tetap)
-          const on = o.id === (known ? current : withDefault ? undefined : null);
+          const on = o.id === (known ? current : cleared);
           return (
-            <TouchableOpacity key={o.id === undefined ? 'default' : o.id || 'none'} onPress={() => onPick(o.id)}
+            <TouchableOpacity key={o.id === undefined ? 'default' : o.id || 'none'} onPress={() => onPick(on && o.id !== undefined ? cleared : o.id)}
               style={[styles.chip, on && styles.chipOn]} accessibilityState={{ selected: on }}>
               <Text style={[styles.chipText, on && { color: '#FFFFFF' }]}>{o.name}</Text>
             </TouchableOpacity>
@@ -326,6 +340,7 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
                     setForm(emptyForm);
                     setFormError(null);
                     setFormOpen(false);
+                    setEditingId(null);
                   }}
                 >
                   <View style={{ flex: 1, minWidth: 0 }}>
@@ -355,6 +370,21 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
                             );
                           })()}
                         </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            select();
+                            setEditingId(s.id);
+                            setForm({ name: s.name, start: s.startTime, end: s.endTime, late: s.lateDeadline });
+                            setFormError(null);
+                            setFormOpen(true);
+                          }}
+                          disabled={busy}
+                          hitSlop={10}
+                          style={{ marginRight: 14 }}
+                          accessibilityLabel={`Ubah ${s.name}`}
+                        >
+                          <Feather name="edit-2" size={16} color={busy ? colors.faint : colors.primary} />
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={() => { select(); setConfirm({ type: 'shift', shift: s }); }} disabled={busy} hitSlop={10} accessibilityLabel={`Hapus ${s.name}`}>
                           <Feather name="trash-2" size={17} color={busy ? colors.faint : colors.danger} />
                         </TouchableOpacity>
@@ -367,7 +397,7 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
 
                     {formOpen ? (
                       <View style={styles.formBox}>
-                        <Text style={styles.label}>Jam shift baru</Text>
+                        <Text style={styles.label}>{editingId ? 'Ubah jam shift' : 'Jam shift baru'}</Text>
                         <TextInput style={styles.input} placeholder="Nama shift, mis. Shift Pagi" value={form.name}
                           placeholderTextColor={colors.faint} accessibilityLabel="Nama shift"
                           onChangeText={(t) => setForm((f) => ({ ...f, name: t }))} />
@@ -388,25 +418,26 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
                         <Text style={[styles.deptSub, { marginTop: 4 }]}>Ketik jam masuk (mis. 0800), batas telat +30 menit dan jam pulang +8 jam terisi otomatis dan bisa diubah. Jam pulang lebih kecil dari jam masuk berarti lewat tengah malam.</Text>
                         {formError ? <Text style={styles.error}>{formError}</Text> : null}
                         <View style={styles.row}>
-                          <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={() => { select(); setFormOpen(false); setFormError(null); }}>
+                          <TouchableOpacity style={[styles.secondaryBtn, { flex: 1 }]} onPress={() => { select(); setFormOpen(false); setEditingId(null); setForm(emptyForm); setFormError(null); }}>
                             <Text style={styles.secondaryBtnText}>Batal</Text>
                           </TouchableOpacity>
                           <TouchableOpacity style={[styles.addBtn, { flex: 2 }, busy && { opacity: 0.6 }]} disabled={busy} onPress={() => addShift(dept)}>
                             <Feather name="check" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                            <Text style={styles.addBtnText}>Simpan jam shift</Text>
+                            <Text style={styles.addBtnText}>{editingId ? 'Simpan perubahan' : 'Simpan jam shift'}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
                     ) : (
-                      <TouchableOpacity style={styles.secondaryBtn} onPress={() => { select(); setForm(emptyForm); setFormError(null); setFormOpen(true); }}>
+                      <TouchableOpacity style={styles.secondaryBtn} onPress={() => { select(); setEditingId(null); setForm(emptyForm); setFormError(null); setFormOpen(true); }}>
                         <Feather name="plus" size={14} color={colors.primary} style={{ marginRight: 6 }} />
                         <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>Tambah jam shift</Text>
                       </TouchableOpacity>
                     )}
 
-                    {shifts.length > 0 && (
+                    {deptShifts.length > 0 && (
                       <>
                         <Text style={[styles.label, { marginTop: 12 }]}>Shift tiap karyawan</Text>
+                        <Text style={styles.deptSub}>Klik shift untuk memasang, klik lagi untuk melepas (kembali ke jam kantor).</Text>
                         {staff.length === 0 ? (
                           <Text style={styles.deptSub}>Belum ada karyawan di departemen ini.</Text>
                         ) : (
