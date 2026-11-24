@@ -6,7 +6,8 @@ import { AttendanceService } from '../../services/attendanceService';
 import { Card } from '../ui/Card';
 import { colors, fontSize, radius } from '../../theme';
 import { select, succeed, fail } from '../../services/feedbackService';
-import { DAY_LABELS, ShiftSchedule, isOvernight, validateShiftTimes } from '../../utils/shifts';
+import { DAY_LABELS, ShiftSchedule, isOvernight, shiftIdFor, validateShiftTimes } from '../../utils/shifts';
+import { todayWIB } from '../../utils/dates';
 
 interface Props {
   currentAdmin: UserProfile;
@@ -153,6 +154,10 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
     }
   };
 
+  const today = todayWIB();
+  const membersOf = (s: WorkShift) =>
+    users.filter((u) => u.role === 'employee' && shiftIdFor({ shiftId: shiftOf(u), shiftSchedule: scheduleOf(u) }, today) === s.id);
+
   const shiftLabel = (s: WorkShift, dept: string) => (s.department === dept ? s.name : s.name + ' (' + s.department + ')');
   // Shift departemen sendiri dulu, lalu shift departemen lain.
   const shiftsFor = (dept: string) => [
@@ -189,7 +194,7 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
   };
 
   return (
-    <Card title="Shift Kerja per Departemen" subtitle="Opsional. Departemen tanpa shift tetap memakai jam kantor." icon="clock">
+    <Card title="Shift Kerja" subtitle="Buka departemen untuk membuat shift dan memilih shift tiap karyawan. Tanpa shift = jam kantor." icon="clock">
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
       ) : loadError ? (
@@ -230,6 +235,14 @@ export const AdminShiftManager: React.FC<Props> = ({ currentAdmin, users, onChan
                           <Text style={styles.deptSub}>
                             {s.startTime} - {s.endTime} WIB{isOvernight(s) ? ' (lewat tengah malam)' : ''} · telat setelah {s.lateDeadline}
                           </Text>
+                          {(() => {
+                            const mem = membersOf(s);
+                            return (
+                              <Text style={styles.members} numberOfLines={2}>
+                                {mem.length ? 'Hari ini ' + mem.length + ' orang: ' + mem.map((u) => u.fullName).join(', ') : 'Hari ini belum ada karyawan'}
+                              </Text>
+                            );
+                          })()}
                         </View>
                         <TouchableOpacity onPress={() => removeShift(s)} disabled={busy} hitSlop={10} accessibilityLabel={`Hapus ${s.name}`}>
                           <Feather name="trash-2" size={17} color={busy ? colors.faint : colors.danger} />
@@ -319,6 +332,7 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: fontSize.xs, fontWeight: '600', marginTop: 4 },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 10, marginTop: 8 },
   addBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: fontSize.sm },
+  members: { fontSize: fontSize.xs, color: colors.ink, marginTop: 2 },
   staffBlock: { paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: colors.border },
   schedToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, alignSelf: 'flex-start' },
   schedToggleText: { fontSize: fontSize.xs, fontWeight: '700', color: colors.primary },

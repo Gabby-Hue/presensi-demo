@@ -44,7 +44,7 @@ interface AdminDashboardProps {
   onPressProfile?: () => void;
 }
 
-type TabKey = 'companies' | 'monitoring' | 'report' | 'geofence' | 'departments' | 'employees' | 'approval';
+type TabKey = 'companies' | 'monitoring' | 'report' | 'geofence' | 'departments' | 'employees' | 'shifts' | 'approval';
 
 const TABS: Array<{
   key: TabKey;
@@ -59,6 +59,7 @@ const TABS: Array<{
   { key: 'geofence', label: 'Titik & Radius', icon: 'map', branchOnly: true },
   { key: 'departments', label: 'Departemen', icon: 'grid', branchOnly: true },
   { key: 'employees', label: 'Kelola Karyawan', icon: 'user-plus', branchOnly: true },
+  { key: 'shifts', label: 'Shift Kerja', icon: 'clock', branchOnly: true },
   { key: 'approval', label: 'Persetujuan', icon: 'inbox', branchOnly: true },
 ];
 
@@ -221,6 +222,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       sub: 'Atur divisi cabang, tambah, ubah nama, reassign karyawan, atau hapus',
     },
     employees: { title: 'Kelola Karyawan', sub: 'Akun dan perangkat karyawan cabang' },
+    shifts: { title: 'Shift Kerja', sub: 'Buat shift dan atur karyawan masuk shift yang mana' },
     approval: { title: 'Persetujuan Izin', sub: 'Pengajuan yang menunggu keputusan admin cabang' },
   };
 
@@ -674,7 +676,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onChanged={onRefreshUsers}
         />
       )}
-      {activeTab === 'departments' && (
+      {activeTab === 'shifts' && !isSuper && (
         <AdminShiftManager currentAdmin={currentAdmin} users={users} onChanged={onRefreshUsers} />
       )}
 
